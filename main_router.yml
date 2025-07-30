@@ -1,7 +1,7 @@
 ---
 - name: 🚀 Aprovisionamiento de VM
   hosts: all
-  gather_facts: false
+  gather_facts: true
   become: false
   vars:
     valid_actions:
@@ -36,36 +36,41 @@
     #     name: aprovisionamiento_instancias
     #   register: r_provisioning
     #   when: action == 'provisioning'
-    - name: 🏗️ Recoger facts de localhost
-      ansible.builtin.setup:
-      register: r_provisioning
-      when: action == 'provisioning'
 
     - name: 🔎 Debug de todos los facts recolectados
       ansible.builtin.debug:
-        var: r_provisioning.ansible_facts
+        var: ansible_facts
       when: action == 'provisioning'
 
-    - name: 📤 Exportar variables de localhost para pruebas
+    - name: 📤 Exportar variables del host remoto para el siguiente play
       ansible.builtin.set_stats:
         data:
-          vm_hostname: "{{ r_provisioning.ansible_facts.ansible_hostname }}"
-          vm_ip_address: >-
-            {{ r_provisioning.ansible_facts.ansible_all_ipv4_addresses[0] | default('127.0.0.1') }}
-          vm_ostype: "{{ r_provisioning.ansible_facts.ansible_os_family }}"
-          vm_nics: "{{ r_provisioning.ansible_facts.ansible_interfaces }}"
-      when: action == 'provisioning'
+          vm_hostname: "{{ ansible_hostname }}"
+          vm_ip_address: "{{ ansible_all_ipv4_addresses[0] | default('127.0.0.1') }}"
+          vm_ostype: "{{ ansible_os_family }}"
+          vm_nics: "{{ ansible_interfaces }}"
 
-    - name: ➕ Registrar localhost como dynamic_vm para pruebas
+    - name: 🧠 Consolidar conexión del host aprovisionado
+      ansible.builtin.set_stats:
+        data:
+          connection_info:
+            hostname: "{{ inventory_hostname }}"
+            ip: "{{ ansible_host }}"
+            os: "{{ ansible_os_family }}"
+            user: "{{ hostvars[inventory_hostname]['ansible_user'] | default('root') }}"
+            password: "{{ hostvars[inventory_hostname]['ansible_password'] | default('i20unix06b') }}"
+            connection: "{{ hostvars[inventory_hostname]['ansible_connection'] | default('ssh') }}"
+            port: "{{ hostvars[inventory_hostname]['ansible_port'] | default(22) }}"
+
+    - name: ➕ Registrar host como dynamic_vm
       add_host:
-        name: "{{ r_provisioning.ansible_facts.ansible_hostname }}"
-        ansible_host: "{{ r_provisioning.ansible_facts.ansible_all_ipv4_addresses[0] | default('127.0.0.1') }}"
+        name: "{{ connection_info.hostname }}"
+        ansible_host: "{{ connection_info.ip }}"
         groups: dynamic_vm
-        ansible_user: "root"
-        ansible_password: "i20unix06b"
-        ansible_connection: "ssh"
-        ansible_port: 22
-      when: action == 'provisioning'
+        ansible_user: "{{ connection_info.user }}"
+        ansible_password: "{{ connection_info.password }}"
+        ansible_connection: "{{ connection_info.connection }}"
+        ansible_port: "{{ connection_info.port }}"
 
 - name: 🧩 Ejecución de roles sobre la VM aprovisionada
   hosts: dynamic_vm
