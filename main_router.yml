@@ -31,10 +31,14 @@
       when: action not in valid_actions
 
   tasks:
+    # - name: 🏗️ Ejecutar Aprovisionamiento
+    #   ansible.builtin.include_role:
+    #     name: aprovisionamiento_instancias
+    #   register: r_provisioning
+    #   when: action == 'provisioning'
     - name: 🏗️ Ejecutar Aprovisionamiento
-      ansible.builtin.include_role:
-        name: aprovisionamiento_instancias
-      register: r_provisioning
+      ansible.builtin.setup:
+        register: r_provisioning
       when: action == 'provisioning'
 
     - name: 📤 Exportar variables de VM para el siguiente play
