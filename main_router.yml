@@ -36,29 +36,29 @@
     #     name: aprovisionamiento_instancias
     #   register: r_provisioning
     #   when: action == 'provisioning'
-    - name: 🏗️ Ejecutar Aprovisionamiento
+    - name: 🏗️ Recoger facts de localhost
       ansible.builtin.setup:
       register: r_provisioning
       when: action == 'provisioning'
 
-    - name: 📤 Exportar variables de VM para el siguiente play
+    - name: 📤 Exportar variables de localhost para pruebas
       ansible.builtin.set_stats:
         data:
-          vm_hostname: "{{ r_provisioning.instance.vm_hostname }}"
-          vm_ip_address: "{{ r_provisioning.instance.vm_nics[0].vm_ip_address }}"
-          vm_ostype: "{{ r_provisioning.instance.vm_ostype }}"
-          vm_nics: "{{ r_provisioning.instance.vm_nics }}"
+          vm_hostname: "{{ r_provisioning.ansible_facts.ansible_hostname }}"
+          vm_ip_address: "{{ r_provisioning.ansible_facts.ansible_default_ipv4.address }}"
+          vm_ostype: "{{ r_provisioning.ansible_facts.ansible_os_family }}"
+          vm_nics: "{{ r_provisioning.ansible_facts.ansible_interfaces }}"
       when: action == 'provisioning'
 
-    - name: ➕ Registrar VM como host dinámico
+    - name: ➕ Registrar localhost como dynamic_vm para pruebas
       add_host:
-        name: "{{ r_provisioning.instance.vm_hostname }}"
-        ansible_host: "{{ r_provisioning.instance.vm_nics[0].vm_ip_address }}"
+        name: "{{ r_provisioning.ansible_facts.ansible_hostname }}"
+        ansible_host: "{{ r_provisioning.ansible_facts.ansible_default_ipv4.address }}"
         groups: dynamic_vm
-        ansible_user: "{{ 'root' if r_provisioning.instance.vm_ostype == 'linux' else 'operator' }}"
-        ansible_password: "{{ 'i20unix06b' if r_provisioning.instance.vm_ostype == 'linux' else 'Bugtraq12' }}"
-        ansible_connection: "{{ 'ssh' if r_provisioning.instance.vm_ostype == 'linux' else 'winrm' }}"
-        ansible_port: "{{ 22 if r_provisioning.instance.vm_ostype == 'linux' else 5985 }}"
+        ansible_user: "root"
+        ansible_password: "i20unix06b"
+        ansible_connection: "ssh"
+        ansible_port: 22
       when: action == 'provisioning'
 
 - name: 🧩 Ejecución de roles sobre la VM aprovisionada
