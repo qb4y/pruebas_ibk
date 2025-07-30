@@ -4,7 +4,7 @@
       when: ansible_os_family is not defined
 
     - ansible.builtin.debug:
-        var: ansible_facts
+        var: dynamic_vm
   tags:
     - facts
     - recolectar_informacion
