@@ -78,7 +78,7 @@
 
   pre_tasks:
     - name: ⚙️ Recolectar facts del sistema remoto
-      ansible.builtin.setup:
+      ansible.builtin.setup: {}
 
   tasks:
     - name: ⚙️ General Tasks
