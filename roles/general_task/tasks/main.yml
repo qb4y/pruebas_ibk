@@ -20,8 +20,8 @@
 
 - name: Configurar credenciales según el SO detectado (Windows)
   ansible.builtin.set_fact:
-    ansible_user: "{{ windows_user | default(ansible_user|default(lookup('env','ANSIBLE_USER'))) }}"
-    ansible_password: "{{ windows_password | default(ansible_password|default(lookup('env','ANSIBLE_PASSWORD'))) }}"
+    ansible_user: "{{ windows_user }}"
+    ansible_password: "{{ windows_password }}"
     ansible_connection: winrm
     ansible_winrm_transport: "{{ winrm_transport | default('ntlm') }}"
     ansible_winrm_server_cert_validation: "{{ cert_validation | default('ignore') }}"
