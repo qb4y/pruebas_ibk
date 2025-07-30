@@ -9,6 +9,10 @@
     - facts
     - recolectar_informacion
 
+- name: Mostrar los hosts del grupo dynamic_vm
+  debug:
+    var: groups['dynamic_vm']
+
 - name: Detectar sistema operativo y configurar variables
   ansible.builtin.set_fact:
     os_detected: "{{ ansible_os_family | lower }}"
@@ -28,6 +32,8 @@
     ansible_port: "{{ winrm_port | default(5985) }}"
     ansible_become: false
     ansible_become_method: ""
+    windows_user: "{{ connection_info.user }}" # 🔧 Añadir esto
+    windows_password: "{{ connection_info.password }}" # 🔧 Añadir esto
   when: is_windows | bool
   tags:
     - always
