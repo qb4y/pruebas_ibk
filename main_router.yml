@@ -51,16 +51,15 @@
           vm_nics: "{{ ansible_interfaces }}"
 
     - name: 🧠 Consolidar conexión del host aprovisionado
-      ansible.builtin.set_stats:
-        data:
-          connection_info:
-            hostname: "{{ inventory_hostname }}"
-            ip: "{{ ansible_host }}"
-            os: "{{ ansible_os_family }}"
-            user: "{{ hostvars[inventory_hostname]['ansible_user'] | default('root') }}"
-            password: "{{ hostvars[inventory_hostname]['ansible_password'] | default('i20unix06b') }}"
-            connection: "{{ hostvars[inventory_hostname]['ansible_connection'] | default('ssh') }}"
-            port: "{{ hostvars[inventory_hostname]['ansible_port'] | default(22) }}"
+      ansible.builtin.set_fact:
+        connection_info:
+          hostname: "{{ inventory_hostname }}"
+          ip: "{{ ansible_host }}"
+          os: "{{ ansible_os_family }}"
+          user: "{{ ansible_user | default('root') }}"
+          password: "{{ ansible_password | default('i20unix06b') }}"
+          connection: "{{ ansible_connection | default('ssh') }}"
+          port: "{{ ansible_port | default(22) }}"
 
     - name: ➕ Registrar host como dynamic_vm
       add_host:
