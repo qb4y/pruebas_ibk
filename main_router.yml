@@ -41,6 +41,11 @@
       register: r_provisioning
       when: action == 'provisioning'
 
+    - name: 🔎 Debug de todos los facts recolectados
+      ansible.builtin.debug:
+        var: r_provisioning.ansible_facts
+      when: action == 'provisioning'
+
     - name: 📤 Exportar variables de localhost para pruebas
       ansible.builtin.set_stats:
         data:
