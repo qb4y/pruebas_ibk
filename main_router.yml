@@ -1,6 +1,6 @@
 ---
 - name: 🚀 Aprovisionamiento de VM
-  hosts: localhost
+  hosts: all
   gather_facts: false
   become: false
   vars:
@@ -50,7 +50,8 @@
       ansible.builtin.set_stats:
         data:
           vm_hostname: "{{ r_provisioning.ansible_facts.ansible_hostname }}"
-          vm_ip_address: "{{ r_provisioning.ansible_facts.ansible_default_ipv4.address }}"
+          vm_ip_address: >-
+            {{ r_provisioning.ansible_facts.ansible_all_ipv4_addresses[0] | default('127.0.0.1') }}
           vm_ostype: "{{ r_provisioning.ansible_facts.ansible_os_family }}"
           vm_nics: "{{ r_provisioning.ansible_facts.ansible_interfaces }}"
       when: action == 'provisioning'
@@ -58,7 +59,7 @@
     - name: ➕ Registrar localhost como dynamic_vm para pruebas
       add_host:
         name: "{{ r_provisioning.ansible_facts.ansible_hostname }}"
-        ansible_host: "{{ r_provisioning.ansible_facts.ansible_default_ipv4.address }}"
+        ansible_host: "{{ r_provisioning.ansible_facts.ansible_all_ipv4_addresses[0] | default('127.0.0.1') }}"
         groups: dynamic_vm
         ansible_user: "root"
         ansible_password: "i20unix06b"
