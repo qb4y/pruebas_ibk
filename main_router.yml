@@ -73,8 +73,12 @@
 
 - name: 🧩 Ejecución de roles sobre la VM aprovisionada
   hosts: dynamic_vm
-  gather_facts: true
+  gather_facts: false
   become: false
+
+  pre_tasks:
+    - name: ⚙️ Recolectar facts del sistema remoto
+      ansible.builtin.setup:
 
   tasks:
     - name: ⚙️ General Tasks
