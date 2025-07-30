@@ -1,0 +1,9 @@
+---
+patch_type: 'update_all'
+change_number: ''
+extra_args_suse: ''
+kernel_patching_suse: false
+fail_on_error: true
+async_value: 0
+poll_value: 15
+run_patch_scan: false

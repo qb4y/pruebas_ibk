@@ -1,0 +1,168 @@
+---
+- name: 📁 Crear grupos locales (Windows)
+  ansible.windows.win_group:
+    name: "{{ item.nombre }}"
+    description: "Grupo creado por Ansible - {{ item.nombre }}"
+    state: present
+  loop: "{{ CU_GRUPOS }}"
+  register: grupos_creados_win
+
+- name: Mostrar grupos creados (Windows)
+  ansible.builtin.debug:
+    msg: "📁 Grupo '{{ item.item.nombre }}': {{ 'Creado' if item.changed else 'Ya existía' }}"
+  loop: "{{ grupos_creados_win.results }}"
+  loop_control:
+    label: "{{ item.item.nombre }}"
+
+- name: 🎲 Generar contraseñas aleatorias para usuarios
+  ansible.builtin.set_fact:
+    generated_passwords: "{{ generated_passwords | default({}) | combine({item.1.nombre: lookup('password', '/dev/null length=12 chars=ascii_letters,digits,!@#$%')}) }}"
+  loop: "{{ CU_GRUPOS | subelements('usuarios') }}"
+  loop_control:
+    label: "{{ item.1.nombre }}"
+  no_log: true  # No mostrar contraseñas en logs
+
+- name: 👤 Crear usuarios locales (Windows)
+  ansible.windows.win_user:
+    name: "{{ item.1.nombre }}"
+    description: "Usuario creado por Ansible - {{ item.1.nombre }}"
+    password: "{{ generated_passwords[item.1.nombre] }}"
+    groups:
+      - "{{ item.0.nombre }}"
+      - "{{ permission_map.windows[item.1.permisos] }}"
+    groups_action: add
+    state: present
+    user_cannot_change_password: false
+    password_never_expires: false
+    password_expired: "{{ force_password_change }}"
+  loop: "{{ CU_GRUPOS | subelements('usuarios') }}"
+  loop_control:
+    label: "{{ item.1.nombre }} -> {{ item.0.nombre }}"
+  register: usuarios_creados_win
+
+- name: Mostrar usuarios creados (Windows)
+  ansible.builtin.debug:
+    msg: |
+      👤 Usuario '{{ item.item.1.nombre }}': {{ 'Creado' if item.changed else 'Ya existía' }}
+      📁 Grupo principal: {{ item.item.0.nombre }}
+      🔐 Grupo de permisos: {{ permission_map.windows[item.item.1.permisos] }}
+      🔒 Cambio de contraseña requerido: {{ force_password_change }}
+  loop: "{{ usuarios_creados_win.results }}"
+  loop_control:
+    label: "{{ item.item.1.nombre }}"
+
+- name: 🔐 Configurar permisos especiales para administradores (Windows)
+  ansible.windows.win_group_membership:
+    name: "Administrators"
+    members:
+      - "{{ item.1.nombre }}"
+    state: present
+  loop: "{{ CU_GRUPOS | subelements('usuarios') }}"
+  loop_control:
+    label: "{{ item.1.nombre }}"
+  when: item.1.permisos == 1  # Solo administradores
+  register: admin_permisos
+
+- name: Mostrar permisos administrativos configurados
+  ansible.builtin.debug:
+    msg: "🔐 Permisos de administrador configurados para: {{ item.item.1.nombre }}"
+  loop: "{{ admin_permisos.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.1.nombre }}"
+  when: item.changed | default(false)
+
+- name: 🔍 Verificar usuarios creados (Windows)
+  ansible.windows.win_shell: |
+    Get-LocalUser -Name "{{ item.1.nombre }}" | Select-Object Name, Enabled, LastLogon
+  loop: "{{ CU_GRUPOS | subelements('usuarios') }}"
+  loop_control:
+    label: "{{ item.1.nombre }}"
+  register: user_verification_win
+  failed_when: false
+
+- name: Mostrar verificación de usuarios
+  ansible.builtin.debug:
+    msg: |
+      👤 Usuario: {{ item.item.1.nombre }}
+      📊 Estado: {{ 'Verificado' if item.rc == 0 else 'Error en verificación' }}
+  loop: "{{ user_verification_win.results }}"
+  loop_control:
+    label: "{{ item.item.1.nombre }}"
+
+- name: 🔍 Verificar membresía de grupos (Windows)
+  ansible.windows.win_shell: |
+    $user = "{{ item.1.nombre }}"
+    $groups = Get-LocalUser -Name $user | ForEach-Object { 
+        Get-LocalGroup | Where-Object { 
+            (Get-LocalGroupMember -Group $_.Name -ErrorAction SilentlyContinue).Name -contains "$env:COMPUTERNAME\$user" 
+        } 
+    }
+    $groups.Name -join ", "
+  loop: "{{ CU_GRUPOS | subelements('usuarios') }}"
+  loop_control:
+    label: "{{ item.1.nombre }}"
+  register: group_membership_win
+  failed_when: false
+
+- name: Mostrar membresía de grupos
+  ansible.builtin.debug:
+    msg: |
+      👤 Usuario: {{ item.item.1.nombre }}
+      👥 Grupos: {{ item.stdout | default('Error al verificar') | trim }}
+  loop: "{{ group_membership_win.results }}"
+  loop_control:
+    label: "{{ item.item.1.nombre }}"
+
+- name: 🏠 Verificar directorios de perfil (Windows)
+  ansible.windows.win_stat:
+    path: "{{ home_base_path }}\\{{ item.1.nombre }}"
+  loop: "{{ CU_GRUPOS | subelements('usuarios') }}"
+  loop_control:
+    label: "{{ item.1.nombre }}"
+  register: profile_verification_win
+
+- name: Mostrar verificación de perfiles
+  ansible.builtin.debug:
+    msg: "🏠 Perfil {{ item.item.1.nombre }}: {{ 'Existe' if item.stat.exists else 'Se creará en primer login' }}"
+  loop: "{{ profile_verification_win.results }}"
+  loop_control:
+    label: "{{ item.item.1.nombre }}"
+
+- name: 🔒 Configurar política de contraseñas para usuarios (Windows)
+  ansible.windows.win_shell: |
+    net user "{{ item.1.nombre }}" /passwordchg:{{ 'yes' if force_password_change else 'no' }}
+  loop: "{{ CU_GRUPOS | subelements('usuarios') }}"
+  loop_control:
+    label: "{{ item.1.nombre }}"
+  register: password_policy
+  changed_when: false
+  failed_when: false
+
+- name: ❌ Fallar si algún usuario no fue creado correctamente (Windows)
+  ansible.builtin.fail:
+    msg: "❌ Error: Usuario {{ item.item.1.nombre }} no fue creado correctamente en Windows."
+  loop: "{{ user_verification_win.results }}"
+  loop_control:
+    label: "{{ item.item.1.nombre }}"
+  when: item.rc != 0
+
+- name: ✅ Confirmación de creación exitosa (Windows)
+  ansible.builtin.debug:
+    msg: |
+      ✅ Usuarios y grupos creados exitosamente en {{ inventory_hostname }}
+      📊 Grupos creados: {{ CU_GRUPOS | map(attribute='nombre') | join(', ') }}
+      👤 Usuarios creados: {{ CU_GRUPOS | map(attribute='usuarios') | flatten | map(attribute='nombre') | join(', ') }}
+      🪟 Sistema: {{ ansible_os_name }} {{ ansible_os_family }}
+      🏠 Ruta base: {{ home_base_path }}
+      🔒 Cambio de contraseña: {{ force_password_change }}
+
+- name: 🔐 OUTPUT - Contraseñas generadas automáticamente
+  ansible.builtin.debug:
+    msg: |
+      🔐 CONTRASEÑAS GENERADAS AUTOMÁTICAMENTE:
+      {% for usuario in CU_GRUPOS | map(attribute='usuarios') | flatten %}
+      👤 {{ usuario.nombre }}: {{ generated_passwords[usuario.nombre] }}
+      {% endfor %}
+      
+      ⚠️  IMPORTANTE: Estas contraseñas son temporales y deben cambiarse en el primer login.
+      ⚠️  Guarda estas contraseñas de forma segura antes de cerrar esta ejecución.

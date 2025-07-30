@@ -1,0 +1,205 @@
+{
+	"definitions": {},
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "https://github.kyndryl.net/Continuous-Engineering/ansible_collection_patching_unix/kyndryl-governance/aix_patching.json",
+	"title": "AIX Patching Common Variables",
+	"type": "object",
+	"required": [],
+	"properties": {
+        "patching_scenario": {
+            "$id": "#root/patching_scenario",
+            "title": "Patching Scenario",
+            "description": "The patching scenario to patch the server. Available options are alt_disk, rootvg and nim_server. If a particular software/subsystem needs to be patched then the value should be software_patching. Use the value as restore if looking to restore the OS to previous maintenance level using old rootvg.",
+            "type": "string",
+            "default": "alt_disk",
+			"enum": [
+				"alt_disk",
+				"rootvg",
+				"nim_server",
+				"software_patching",
+				"restore",
+                "apply_efixes",
+                "remove_efixes"
+			]
+        },
+        "patching_filesets_location": {
+            "$id": "#root/patching_filesets_location",
+            "title": "Patching filesets location",
+            "description": "Patching filesets location.",
+            "type": "string",
+            "default": "",
+            "pattern": "^/.*$"
+        },
+        "efix_filesets_location": {
+            "$id": "#root/efix_filesets_location",
+            "title": "Efixes package location",
+            "description": "Efixes package location.",
+            "type": "string",
+            "default": "",
+            "pattern": "^/.*$"
+        },
+        "remove_efix_list": {
+            "$id": "#root/remove_efix_list",
+            "title": "Efixes to be uninstalled",
+            "description": "Comma separated list of efixes which need to be uninstalled.",
+            "type": "string",
+            "default": "",
+            "pattern": "^.*$"
+        },
+        "nfs_path": {
+            "$id": "#root/nfs_path",
+            "title": "Remote NFS Path",
+            "description": "Remote NFS volume to be mounted.",
+            "type": "string",
+            "default": "",
+            "pattern": "^.*$"
+        },
+        "nfs_mountpoint": {
+            "$id": "#root/nfs_mountpoint",
+            "title": "Path to the mount point",
+            "description": "Path to the mount point.",
+            "type": "string",
+            "default": "",
+            "pattern": "^.*$"
+        },
+        "unmount_nfs_after_patching": {
+            "$id": "#root/unmount_nfs_after_patching",
+			"title": "Unmount NFS after patching?",
+			"description": "Switch to decide whether remote NFS volume needs to be unmounted after patching.",
+			"type": "boolean",
+			"default": true
+		},
+        "mount_with_soft_option": {
+            "$id": "#root/mount_with_soft_option",
+			"title": "Mount using soft option?",
+			"description": "Switch to decide whether remote NFS volume needs to be mounted using soft option.",
+			"type": "boolean",
+			"default": false
+		},
+        "free_disk": {
+            "$id": "#root/free_disk",
+            "title": "Free disk name to install alt_disk",
+            "description": "Free disk name to install alt_disk. Playbook will fetch the free disk if the value is null.",
+            "type": "string",
+            "default": "",
+            "pattern": "^\\w*$"
+        },
+        "use_old_rootvg": {
+            "$id": "#root/use_old_rootvg",
+			"title": "Use old rootvg for cloning?",
+			"description": "Switch to decide whether disk associated with old rootvg should be used to clone rootvg.",
+			"type": "boolean",
+			"default": true
+		},
+        "fail_if_no_old_rootvg": {
+            "$id": "#root/fail_if_no_old_rootvg",
+			"title": "Abort if no old rootvg is found?",
+			"description": "Switch to decide if playbook should abort if no old rootvg is found for alt_disk and rootvg scenarios.",
+			"type": "boolean",
+			"default": false
+		},
+        "free_disk_same_adaptor": {
+            "$id": "#root/free_disk_same_adaptor",
+			"title": "Free disk under the same parent adaptor as rootvg?",
+			"description": "Switch to decide whether playbook should fetch the free disk under the same parent adaptor as rootvg.",
+			"type": "boolean",
+			"default": false
+		},
+        "rootvg_backup": {
+            "$id": "#root/rootvg_backup",
+            "title": "Rootvg backup method",
+            "description": "Rootvg backup method.",
+            "type": "string",
+            "default": "alt_disk",
+			"enum": [
+				"alt_disk",
+				"snapvx"
+			]
+        },
+        "root_vg_name": {
+            "$id": "#root/root_vg_name",
+            "title": "Root volume group name",
+            "description": "Root volume group name.",
+            "type": "string",
+            "default": "rootvg",
+            "pattern": "^.*$"
+        },
+        "reboot_required": {
+            "$id": "#root/reboot_required",
+			"title": "Reboot Required?",
+			"description": "Server reboot required post patching?",
+			"type": "boolean",
+			"default": false
+		},
+        "run_shutdown_script": {
+            "$id": "#root/run_shutdown_script",
+			"title": "Run shutdown script?",
+			"description": "Switch to decide whether /etc/rc.shutdown script to stop all applications/DBs need to be run before patching.",
+			"type": "boolean",
+			"default": false
+		},
+        "restart_ssh": {
+            "$id": "#root/restart_ssh",
+			"title": "Restart SSH service?",
+			"description": "Switch to decide whether SSH service needs to be restarted after software patching.",
+			"type": "boolean",
+			"default": false
+		},
+        "fail_on_error": {
+            "$id": "#root/fail_on_error",
+			"title": "Fail the execution if error occurs?",
+			"description": "Switch to decide whether execution should fail in case of unsuccessful patching.",
+			"type": "boolean",
+			"default": true
+		},
+		"teams_notification": {
+            "$id": "#root/teams_notification",
+			"title": "Teams Notification Required?",
+			"description": "Switch to decide whether MS Teams notification is required.",
+			"type": "boolean",
+			"default": false
+		},
+		"channel_webhook_url": {
+            "$id": "#root/channel_webhook_url",
+            "title": "Channel Webhook url",
+            "description": "MS Teams channel webhook url to receive notifications.",
+            "type": "string",
+            "default": "",
+            "pattern": "^(https?:\\/\\/.*)?$"
+        },
+		"send_email": {
+            "$id": "#root/send_email",
+			"title": "Email Notification Required?",
+			"description": "Switch to decide whether email notification is required.",
+			"type": "boolean",
+			"default": false
+		},
+		"recipients": {
+            "$id": "#root/recipients",
+            "title": "List of email recipients",
+            "description": "List of email recipients in array format.",
+            "type": "array",
+            "items": {
+                "type": "string",
+                "pattern": "^.*@.*$"
+            }
+        },
+        "smtp_port": {
+            "$id": "#root/smtp_port",
+            "title": "SMTP Port",
+            "description": "SMTP port.",
+            "type": "integer",
+            "default": "25",
+            "minimum": 1,
+            "maximum": 65535
+        },
+		"smtp_host_ip": {
+            "$id": "#root/smtp_host_ip",
+            "title": "SMTP host IP address",
+            "description": "SMTP host IP address.",
+            "type": "string",
+            "default": "",
+            "pattern": "^\\d+\\.\\d+\\.\\d+\\.\\d+$"
+		}
+	}
+}

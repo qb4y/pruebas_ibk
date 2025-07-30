@@ -1,0 +1,47 @@
+{
+  "definitions": {},
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.kyndryl.net/EnterpriseAutomation/project_vpm_unix/kyndryl-governance/project_vpm_unix.json",
+  "title": "Asset parameters, by default applied into extra_vars",
+  "type": "object",
+  "required": [],
+  "properties": {
+    "output_dir": {
+      "type": "string",
+      "description": "The directory where the output files will be stored.",
+      "default": "/tmp/gts-ansible/patchscan",
+      "pattern": "^/.*$"
+    },
+    "download_dir": {
+      "type": "string",
+      "description": "Set to 'true' will upload results to the file server. if set to 'false' upload to the specified or default directory on the tower server.",
+      "default": "/var/opt/ansible/GTS/lssecfixes",
+      "pattern": "^/.*$"
+    },
+    "accept_risk_for_altering_download_dir": {
+      "type": "boolean",
+      "description": "The role writes/deletes the directory defined in variable download_dir. In case of misconfiguration it can happen that the role overwrite/delete important files. When you alter the download_dir to other than '/tmp/lssecfixes' or '/var/opt/ansible/GTS/lssecfixes', you have to accept the risk and set this variable to true.",
+      "default": false
+    },
+    "sesudo_workaround": {
+      "type": "boolean",
+      "description": "In case of using sesudo, tasks with async parameter generates longer lines than sesudo supports. If you got 'Parameter is too long' error, and use sesudo, please try to switch this variable to 'true' and the role runs these tasks without async.",
+      "default": false
+    },
+    "privilege_escalation_switch": {
+      "type": "boolean",
+      "description": "The new variable disables privilege escalation (become) for VIOS platform based on the hostvar 'ostype', which on VIOS should be equal to 'vio'.",
+      "default": true
+    },
+    "download_secfixdb": {
+      "type": "boolean",
+      "description": "When it is 'false', disable the download for the latest secfixdb file and check lssecfixes against local file. Also disable cleanup to keep secfixdb file on the host.",
+      "default": true
+    },
+    "use_inventory_hostname": {
+      "type": "boolean",
+      "description": "When it is 'true', inventory_hostname will be used in lssecfixes.cfg instead of the default ansible_hostname.",
+      "default": false
+    }
+}
+}

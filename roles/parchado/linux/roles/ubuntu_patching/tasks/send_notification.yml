@@ -1,0 +1,80 @@
+---
+
+- name: Send email notification
+  when:
+    - send_email
+    - recipients | length
+  block:
+
+    - name: Send email to inform the patching status
+      community.general.mail:
+        host: "{{ smtp_host_ip }}"
+        port: "{{ smtp_port }}"
+        subject: "{{ inventory_hostname }} Patching Failure"
+        from: "{{ sender }}"
+        body: "{{ exec_message }}"
+        to: "{{ recipients }}"
+        subtype: "plain"
+        charset: "utf8"
+
+  rescue:
+
+    - name: Return code generation in case of failure during sending email
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "account"
+        rc_group: "misconfiguration"
+        rc_number: 6011
+        rc_message:
+          "Issues while sending email notification.
+          Please make sure correct SMTP host and port values are passed."
+        documentation: "{{ readme_url }}"
+
+    - name: Update exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Issues while sending email notification."
+
+- name: MS teams notification
+  when:
+    - teams_notification
+    - channel_webhook_url | length
+  block:
+
+    - name: Teams notification module
+      ansible.builtin.uri:
+        url: "{{ channel_webhook_url }}"
+        body: "{{ lookup('template', card_name) }}"
+        body_format: json
+        method: POST
+        validate_certs: false
+        timeout: 60
+      delegate_to: localhost
+      become: false
+      vars:
+        card_name: "../../../Library/aix_patching_failure_card.j2"
+        tower_host: "{{ lookup('env', 'TOWER_HOST') }}"
+        tower_job_suffix: "#/jobs/playbook/{{ tower_job_id }}"
+
+  rescue:
+
+    - name:
+        Return code generation in case of failure
+        during sending MS Teams notification
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "account"
+        rc_group: "misconfiguration"
+        rc_number: 6012
+        rc_message:
+          "Issues while sending MS Teams notification.
+          Please make sure correct webhook url is passed."
+
+    - name: Update exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Issues while sending MS Teams notification.\n\n"

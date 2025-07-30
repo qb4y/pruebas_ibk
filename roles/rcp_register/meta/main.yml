@@ -1,0 +1,40 @@
+---
+# ========== METADATOS DEL ROL RCP_REGISTER ==========
+galaxy_info:
+  role_name: rcp_register
+  author: joska
+  description: >
+    Rol para registrar servidores RCP en MinIO, generando un CSV con la información del inventario y subiéndolo a un bucket específico.
+  company: Kyndryl
+  license: Kyndryl Intellectual Property 
+  min_ansible_version: "2.12"
+
+  platforms:
+    - name: EL
+      versions:
+        - "7"
+        - "8"
+        - "9"
+    - name: Ubuntu
+      versions:
+        - "18.04"
+        - "20.04" 
+        - "22.04"
+    - name: Windows
+      versions:
+        - "2012R2"
+        - "2016"
+        - "2019"
+        - "2022"
+
+  galaxy_tags:
+    - rcp
+    - registration
+    - minio
+    - csv
+    - inventory
+    - server
+    - compliance
+# ========== DEPENDENCIAS ==========
+dependencies:
+  - name: vault_core

@@ -1,0 +1,313 @@
+---
+- name: 🧠 Recolectar facts si no están presentes (Linux)
+  ansible.builtin.setup:
+  when: ansible_os_family is not defined
+
+- name: Verificar sistema operativo compatible
+  ansible.builtin.assert:
+    that:
+      - ansible_os_family == 'RedHat'
+      - ansible_distribution in ['RedHat', 'CentOS', 'Rocky', 'OracleLinux', 'AlmaLinux']
+      - ansible_distribution_major_version in ['7', '8', '9']
+    fail_msg: |
+      ❌ Sistema no compatible
+      Distribución: {{ ansible_distribution }} {{ ansible_distribution_major_version }}
+      SO soportados: RHEL/CentOS/Rocky/Oracle/Alma Linux 7, 8, 9
+
+- name: Validar que las variables de CrowdStrike están disponibles
+  ansible.builtin.assert:
+    that:
+      - crowdstrike_customer_id is defined
+      - crowdstrike_installer_url is defined
+      - crowdstrike_console_url is defined
+      - crowdstrike_endpoint_1 is defined
+      - crowdstrike_endpoint_2 is defined
+    fail_msg: "❌ Variables de CrowdStrike no fueron cargadas correctamente."
+  tags: [vault]
+
+# VERIFICACIÓN DE INSTALACIÓN PREVIA
+- name: Verificar si el ejecutable falconctl existe
+  ansible.builtin.stat:
+    path: /opt/CrowdStrike/falconctl
+  register: falconctl_exists
+
+- name: Verificar paquete instalado si existe falconctl
+  ansible.builtin.shell: rpm -qa | grep -i falcon-sensor || echo "NOT_INSTALLED"
+  register: crowdstrike_package
+  changed_when: false
+  when: falconctl_exists.stat.exists
+
+- name: Mostrar estado de instalación actual
+  debug:
+    msg: |
+      🔍 Estado de CrowdStrike: {{ 'Ya instalado' if falconctl_exists.stat.exists else 'No instalado' }}
+      📋 Ejecutable falconctl: {{ 'Existe' if falconctl_exists.stat.exists else 'No existe' }}
+      📦 Paquete: {{ crowdstrike_package.stdout | default('No verificado') }}
+
+- name: Marcar estado de instalación
+  set_fact:
+    crowdstrike_already_installed: "{{ falconctl_exists.stat.exists }}"
+
+# PROCESO DE INSTALACIÓN (Solo si no está instalado)
+- name: Crear directorio temporal para descarga
+  ansible.builtin.file:
+    path: /tmp/crowdstrike
+    state: directory
+    mode: '0755'
+  when: not crowdstrike_already_installed
+
+- name: Obtener nombre del archivo del instalador desde URL
+  ansible.builtin.set_fact:
+    installer_filename: "{{ crowdstrike_installer_url | urlsplit('path') | basename | regex_search('[^?]*') }}"
+  when: not crowdstrike_already_installed
+
+- name: Mostrar información de descarga
+  debug:
+    msg: |
+      🔗 URL pre-firmada disponible
+      📁 Destino: /tmp/crowdstrike/{{ installer_filename }}
+      ⏰ URL expira en 10 minutos
+  when: not crowdstrike_already_installed
+
+- name: Descargar CrowdStrike Falcon Sensor desde MinIO (URL pre-firmada)
+  ansible.builtin.get_url:
+    url: "{{ crowdstrike_installer_url }}"
+    dest: "/tmp/crowdstrike/{{ installer_filename }}"
+    mode: '0644'
+    timeout: 300
+  register: download_result
+  when: not crowdstrike_already_installed
+
+- name: Verificar que el archivo fue descargado correctamente
+  ansible.builtin.stat:
+    path: "/tmp/crowdstrike/{{ installer_filename }}"
+  register: installer_file
+  when: not crowdstrike_already_installed
+
+- name: Validar descarga del instalador
+  ansible.builtin.fail:
+    msg: |
+      ❌ El instalador no fue descargado correctamente
+      📁 Ruta: /tmp/crowdstrike/{{ installer_filename }}
+      📏 Tamaño: {{ installer_file.stat.size | default(0) }} bytes
+  when: 
+    - not crowdstrike_already_installed
+    - not installer_file.stat.exists or installer_file.stat.size < 1000000
+
+- name: Instalar CrowdStrike Falcon Sensor
+  ansible.builtin.yum:
+    name: "/tmp/crowdstrike/{{ installer_filename }}"
+    state: present
+    disable_gpg_check: yes
+  register: install_result
+  become: true
+  when: not crowdstrike_already_installed
+
+- name: Validar instalación exitosa
+  ansible.builtin.fail:
+    msg: "❌ Falló la instalación del CrowdStrike Falcon Sensor: {{ install_result.msg | default('Error desconocido') }}"
+  when: 
+    - not crowdstrike_already_installed
+    - install_result is defined
+    - install_result.failed | default(false)
+
+# CONFIGURACIÓN DEL AGENTE (Solo si está instalado)
+- name: Verificar que falconctl existe antes de configurar
+  ansible.builtin.stat:
+    path: /opt/CrowdStrike/falconctl
+  register: falconctl_check
+
+- name: Verificar configuración actual del CID
+  ansible.builtin.command: /opt/CrowdStrike/falconctl -g --cid
+  register: current_cid
+  changed_when: false
+  become: true
+  ignore_errors: true
+  when: falconctl_check.stat.exists
+
+- name: Mostrar CID actual
+  debug:
+    msg: "🆔 CID actual: {{ current_cid.stdout | default('No configurado - CrowdStrike no está instalado') }}"
+
+- name: Extraer CID actual para comparación
+  ansible.builtin.set_fact:
+    current_cid_value: "{{ current_cid.stdout | default('') | regex_search('cid=\"([^\"]+)\"', '\\1') | default([''], true) | first | default('') }}"
+  when: 
+    - falconctl_check.stat.exists
+    - current_cid.stdout is defined
+    - current_cid.rc is defined
+    - current_cid.rc == 0
+
+- name: Marcar CID como no configurado si el comando falló
+  ansible.builtin.set_fact:
+    current_cid_value: ""
+  when: 
+    - falconctl_check.stat.exists
+    - (current_cid.rc is not defined or current_cid.rc != 0)
+
+- name: Extraer CID objetivo para comparación (sin guiones)
+  ansible.builtin.set_fact:
+    target_cid_clean: "{{ crowdstrike_customer_id | regex_replace('-', '') | lower }}"
+  when: falconctl_check.stat.exists
+
+- name: Mostrar comparación de CIDs
+  debug:
+    msg: |
+      🔍 CID actual: {{ current_cid_value | default('no configurado') }}
+      🎯 CID objetivo: {{ target_cid_clean | default('no definido') }}
+      ✅ Coinciden: {{ (current_cid_value | default('') | lower) == (target_cid_clean | default('') | lower) }}
+      📊 Estado comando CID: {{ 'exitoso' if (current_cid.rc | default(1)) == 0 else 'falló - CID no configurado' }}
+  when: falconctl_check.stat.exists
+
+- name: Configurar Customer ID (CID) - nueva instalación
+  ansible.builtin.command: >
+    /opt/CrowdStrike/falconctl -s --cid={{ crowdstrike_customer_id }}
+  register: cid_config
+  changed_when: cid_config.rc == 0
+  become: true
+  when: 
+    - falconctl_check.stat.exists
+    - (current_cid_value is not defined or current_cid_value == '')
+
+- name: Configurar Customer ID (CID) - actualizar existente
+  ansible.builtin.command: >
+    /opt/CrowdStrike/falconctl -s -f --cid={{ crowdstrike_customer_id }}
+  register: cid_config_force
+  changed_when: cid_config_force.rc == 0
+  become: true
+  when: 
+    - falconctl_check.stat.exists
+    - current_cid_value is defined 
+    - current_cid_value != ''
+    - (current_cid_value | lower) != (target_cid_clean | default('') | lower)
+
+- name: Configurar endpoints de comunicación
+  ansible.builtin.command: >
+    /opt/CrowdStrike/falconctl -s --apd=FALSE --aph={{ item }}
+  loop:
+    - "{{ crowdstrike_endpoint_1 }}"
+    - "{{ crowdstrike_endpoint_2 }}"
+  register: endpoint_config
+  changed_when: endpoint_config.rc == 0
+  become: true
+  ignore_errors: true
+  when: falconctl_check.stat.exists
+
+# GESTIÓN DEL SERVICIO
+- name: Habilitar servicio falcon-sensor
+  ansible.builtin.systemd:
+    name: falcon-sensor
+    enabled: true
+    daemon_reload: true
+  become: true
+  when: falconctl_check.stat.exists
+
+- name: Iniciar servicio falcon-sensor
+  ansible.builtin.systemd:
+    name: falcon-sensor
+    state: started
+  register: service_start
+  become: true
+  when: falconctl_check.stat.exists
+
+- name: Esperar a que el servicio se estabilice
+  ansible.builtin.pause:
+    seconds: 10
+  when: 
+    - falconctl_check.stat.exists
+    - service_start.changed | default(false)
+
+# VERIFICACIONES FINALES
+- name: Validar que CrowdStrike fue instalado
+  ansible.builtin.fail:
+    msg: |
+      ❌ CrowdStrike Falcon Sensor no fue instalado correctamente
+      Verifica los logs anteriores para más detalles
+  when: 
+    - not crowdstrike_already_installed
+    - not falconctl_check.stat.exists
+
+- name: Verificar estado del servicio
+  ansible.builtin.systemd:
+    name: falcon-sensor
+  register: service_status
+  when: falconctl_check.stat.exists
+
+- name: Obtener detalles del servicio
+  ansible.builtin.command: systemctl status falcon-sensor --no-pager
+  register: service_details
+  changed_when: false
+  become: true
+  when: falconctl_check.stat.exists
+
+- name: Verificar proceso falcon-sensor
+  ansible.builtin.shell: |
+    ps aux | grep -v grep | grep falcon-sensor | head -5
+  register: process_check
+  changed_when: false
+  failed_when: false
+  when: falconctl_check.stat.exists
+
+- name: Verificar comunicación del agente
+  ansible.builtin.command: /opt/CrowdStrike/falconctl -g --rfm-state
+  register: rfm_state
+  changed_when: false
+  become: true
+  ignore_errors: true
+  when: falconctl_check.stat.exists
+
+- name: Mostrar estado de conectividad del agente
+  debug:
+    msg: |
+      📡 Estado RFM: {{ rfm_state.stdout | default('No disponible') }}
+      🔄 Nota: El agente puede tardar hasta 5 minutos en conectarse por primera vez
+  when: falconctl_check.stat.exists
+
+# LIMPIEZA
+- name: Limpiar archivo de instalación
+  ansible.builtin.file:
+    path: "/tmp/crowdstrike/{{ installer_filename }}"
+    state: absent
+  when: 
+    - not crowdstrike_already_installed
+    - installer_filename is defined
+    - installer_file is defined
+    - installer_file.stat.exists | default(false)
+
+- name: Remover directorio temporal si está vacío
+  ansible.builtin.file:
+    path: /tmp/crowdstrike
+    state: absent
+  when: not crowdstrike_already_installed
+  ignore_errors: true
+
+# RESUMEN FINAL
+- name: ✅ Confirmación de estado final
+  debug:
+    msg: |
+      ✅ CrowdStrike Falcon Sensor {{ 'ya estaba instalado y está' if crowdstrike_already_installed else 'instalado correctamente y' }} funcionando en {{ inventory_hostname }}
+      📊 Servicio: {{ service_status.status.ActiveState | default('unknown') }}
+      🔄 SubState: {{ service_status.status.SubState | default('unknown') }}
+      📝 Procesos activos: {{ process_check.stdout_lines | length if (process_check is defined and process_check.stdout_lines is defined) else 0 }} falcon-sensor
+      🆔 Customer ID: {{ crowdstrike_customer_id }}
+      🔗 Consola: {{ crowdstrike_console_url }}
+      📡 Endpoints configurados: {{ crowdstrike_endpoint_1 }}, {{ crowdstrike_endpoint_2 }}
+      
+      💡 Próximos pasos:
+      - Verificar el host en la consola de CrowdStrike en unos minutos
+      - El agente puede tardar hasta 5 minutos en aparecer online
+      - Revisar logs en: /var/log/crowdstrike/
+  when: falconctl_check.stat.exists
+
+- name: Mostrar comandos útiles para troubleshooting
+  debug:
+    msg: |
+      🔧 Comandos útiles de CrowdStrike:
+      - Estado del agente: sudo /opt/CrowdStrike/falconctl -g --rfm-state
+      - Ver CID: sudo /opt/CrowdStrike/falconctl -g --cid
+      - Ver versión: sudo /opt/CrowdStrike/falconctl -g --version
+      - Logs: sudo tail -f /var/log/crowdstrike/falcon-sensor.log
+      - Reiniciar servicio: sudo systemctl restart falcon-sensor
+  when: 
+    - falconctl_check.stat.exists
+    - not crowdstrike_already_installed

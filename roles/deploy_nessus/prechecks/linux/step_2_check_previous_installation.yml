@@ -1,0 +1,12 @@
+- name: Verificar si algún paquete Nessus está instalado
+  ansible.builtin.shell: rpm -qa | grep -i nessus
+  register: nessus_installed
+  ignore_errors: true
+  changed_when: false
+  tags:
+    - skip_ansible_lint
+
+- name: Abort si se detecta instalación previa de Nessus
+  ansible.builtin.fail:
+    msg: "Nessus ya está instalado (detectado por rpm -qa)."
+  when: nessus_installed.rc == 0

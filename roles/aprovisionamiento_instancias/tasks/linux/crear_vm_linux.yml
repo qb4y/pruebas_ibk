@@ -1,0 +1,11 @@
+---
+# Orquestador: Crear VM Linux (Modularizado)
+# Función: Coordinar módulos para crear VM Linux
+
+- name: "PASO 1: Mapear variables Linux"
+  ansible.builtin.include_tasks: data_mapping_linux.yml
+  tags: [paso1, data_mapping_linux]
+
+- name: "PASO 2: Crear VM Linux desde template"
+  ansible.builtin.include_tasks: crear_vm_core_linux.yml
+  tags: [paso2, crear_vm_core_linux] 

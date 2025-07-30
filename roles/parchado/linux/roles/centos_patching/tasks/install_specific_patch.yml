@@ -1,0 +1,141 @@
+---
+- name: Install specific package- RHBA/RHSA
+  when: item is regex("^.*(RHBA|RHSA).*$")
+  block:
+
+    - name:
+        Install specific package-
+        RHBA/RHSA  # noqa command-instead-of-module
+      ansible.builtin.command: yum -y update --advisory="{{ item }}"
+      register: patch_result_rh_ba_sa
+      async: "{{ async_value }}"
+      poll: "{{ poll_value }}"
+      changed_when: true
+
+  rescue:
+
+    - name: Return code incase of CentOS specific patch fails
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5012
+        rc_message: "CentOS specific patching RHBA/RHSA failed."
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        patch_status: 'failure'
+        exec_message:
+          "{{ exec_message }}
+          Patching result:\n\n
+          Patch installation FAILED, please perform patching manually.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "CentOS specific patching RHBA/RHSA failed."
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Install specific package - CVE
+  when:
+    - item is regex("^.*CVE.*$")
+    - continue_execution
+  block:
+
+    - name: Install specific package - CVE  # noqa command-instead-of-module
+      ansible.builtin.command: yum -y update --cve "{{ item }}"
+      register: patch_result_cve
+      async: "{{ async_value }}"
+      poll: "{{ poll_value }}"
+      changed_when: true
+
+  rescue:
+
+    - name: Return code incase of CentOS specific patch fails
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5013
+        rc_message: "CentOS specific patching CVE failed."
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        patch_status: 'failure'
+        exec_message:
+          "{{ exec_message }}
+          Patching result:\n\n
+          Patch installation FAILED, please perform patching manually.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "CentOS specific patching CVE failed."
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Specific packages installation status
+  when:
+    (patch_result_rh_ba_sa is not skipped and
+    patch_result_rh_ba_sa.rc == 0) or
+    (patch_result_cve is not skipped and
+    patch_result_cve.rc == 0)
+  block:
+
+    - name: Set returncode
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_success: true
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        patch_status: 'success'
+        exec_message:
+          "{{ exec_message }}
+          Patching result:\n\n
+          Patches installed successfully.\n\n"
+
+- name: Specific packages installation status
+  ansible.builtin.set_fact:
+    patch_status: 'failure'
+    exec_message:
+      "{{ exec_message }}
+      Patching result:\n\n
+      Patch installation FAILED, please perform patching manually.\n\n"
+  when:
+    (patch_result_rh_ba_sa is not skipped and
+    patch_result_rh_ba_sa.rc != 0) or
+    (patch_result_cve is not skipped and
+    patch_result_cve.rc != 0)

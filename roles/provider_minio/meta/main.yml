@@ -1,0 +1,39 @@
+---
+galaxy_info:
+  role_name: provider_minio
+  author: joska
+  description: >
+    Rol proveedor de URLs de descarga desde MinIO. 
+    Genera enlaces dinámicos para instaladores basados en sistema operativo detectado.
+    Facilita integración de almacenamiento MinIO con roles de despliegue automatizado.
+  company: Kyndryl
+  license: Kyndryl Intellectual Property 
+  min_ansible_version: "2.12"
+  platforms:
+    - name: EL
+      versions:
+        - 7
+        - 8
+        - 9
+    - name: Windows
+      versions:
+        - 2012
+        - 2016
+        - 2019
+        - 2022
+  galaxy_tags:
+    - minio
+    - provider
+    - urls
+    - storage
+    - download
+    - automation
+    - infrastructure
+    - windows
+    - linux
+    - redhat
+    - centos
+    - utility
+
+dependencies:
+  - name: vault_core

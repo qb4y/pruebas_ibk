@@ -1,0 +1,305 @@
+Enter passphrase for /tmp/awx_2559534_0pc48rxy/artifacts/2559534/ssh_key_data: 
+Identity added: /tmp/awx_2559534_0pc48rxy/artifacts/2559534/ssh_key_data (/tmp/awx_2559534_0pc48rxy/artifacts/2559534/ssh_key_data)
+
+PLAY [Prepare SFS upload environment] ******************************************
+
+TASK [Prepare] *****************************************************************
+
+TASK [sfs_upload : Prepare for data upload from Tower to SFS] ******************
+included: /tmp/awx_2559534_0pc48rxy/requirements_roles/sfs_upload/tasks/prepare.yml for localhost
+
+TASK [sfs_upload : Define command and parameters for Tower API access] *********
+ok: [localhost]
+
+TASK [sfs_upload : Get current Inventory from Tower] ***************************
+ok: [localhost]
+
+TASK [sfs_upload : Get current Job template from Tower] ************************
+ok: [localhost]
+
+TASK [sfs_upload : Register reusable run-time facts] ***************************
+ok: [localhost]
+
+TASK [sfs_upload : Set full path to temporary folder for data on Tower] ********
+ok: [localhost]
+
+TASK [sfs_upload : Create a temporary folder for data on Tower] ****************
+changed: [localhost]
+
+TASK [sfs_upload : Upload data from Tower to SFS] ******************************
+skipping: [localhost]
+
+PLAY [all] *********************************************************************
+
+TASK [Gathering Facts] *********************************************************
+ok: [XXXX.net]
+
+TASK [pre_patching_validation : Get OS flavor] *********************************
+ok: [XXXX.net]
+
+TASK [pre_patching_validation : Patch source validation] ***********************
+included: /tmp/awx_2559534_0pc48rxy/project/roles/pre_patching_validation/tasks/patch_source_validation.yml for XXXX.net
+
+TASK [pre_patching_validation : Verify proxy] **********************************
+skipping: [XXXX.net]
+
+TASK [pre_patching_validation : Verify subscription status] ********************
+skipping: [XXXX.net]
+
+TASK [pre_patching_validation : Set repo server registation command for Ubuntu] ***
+skipping: [XXXX.net]
+
+TASK [pre_patching_validation : Verify repo server registration] ***************
+[WARNING]: Consider using the yum module rather than running 'yum'.  If you
+need to use command because yum is insufficient you can add 'warn: false' to
+this command task or set 'command_warnings=False' in ansible.cfg to get rid of
+this message.
+ok: [XXXX.net]
+
+TASK [pre_patching_validation : Verify Suse product registration] **************
+skipping: [XXXX.net]
+
+TASK [pre_patching_validation : Invalid patching source] ***********************
+skipping: [XXXX.net]
+
+TASK [pre_patching_validation : Patch source validation] ***********************
+ok: [XXXX.net]
+
+TASK [pre_patching_validation : Set validation_msg] ****************************
+skipping: [XXXX.net]
+
+TASK [pre_patching_validation : Space validation] ******************************
+included: /tmp/awx_2559534_0pc48rxy/project/roles/pre_patching_validation/tasks/space_validation.yml for XXXX.net
+
+TASK [pre_patching_validation : Get available space] ***************************
+ok: [XXXX.net] => (item=/)
+ok: [XXXX.net] => (item=/var)
+ok: [XXXX.net] => (item=/usr)
+ok: [XXXX.net] => (item=/tmp)
+
+TASK [pre_patching_validation : Validate space] ********************************
+skipping: [XXXX.net] => (item={'stderr_lines': [], 'ansible_loop_var': u'item', u'end': u'2021-05-31 17:03:55.080504', u'stderr': u'', u'stdout': u'4138632', u'changed': False, 'failed': False, u'delta': u'0:00:00.011809', u'cmd': u"df -k / | tail -1 | awk '{print $4}'", 'item': u'/', u'rc': 0, u'invocation': {u'module_args': {u'warn': True, u'executable': None, u'_uses_shell': True, u'strip_empty_ends': True, u'_raw_params': u"df -k / | tail -1 | awk '{print $4}'", u'removes': None, u'argv': None, u'creates': None, u'chdir': None, u'stdin_add_newline': True, u'stdin': None}}, 'stdout_lines': [u'4138632'], u'start': u'2021-05-31 17:03:55.068695'}) 
+skipping: [XXXX.net] => (item={'stderr_lines': [], 'ansible_loop_var': u'item', u'end': u'2021-05-31 17:03:58.058887', u'stderr': u'', u'stdout': u'9160660', u'changed': False, 'failed': False, u'delta': u'0:00:00.009915', u'cmd': u"df -k /var | tail -1 | awk '{print $4}'", 'item': u'/var', u'rc': 0, u'invocation': {u'module_args': {u'warn': True, u'executable': None, u'_uses_shell': True, u'strip_empty_ends': True, u'_raw_params': u"df -k /var | tail -1 | awk '{print $4}'", u'removes': None, u'argv': None, u'creates': None, u'chdir': None, u'stdin_add_newline': True, u'stdin': None}}, 'stdout_lines': [u'9160660'], u'start': u'2021-05-31 17:03:58.048972'}) 
+skipping: [XXXX.net] => (item={'stderr_lines': [], 'ansible_loop_var': u'item', u'end': u'2021-05-31 17:04:01.003500', u'stderr': u'', u'stdout': u'4138632', u'changed': False, 'failed': False, u'delta': u'0:00:00.008029', u'cmd': u"df -k /usr | tail -1 | awk '{print $4}'", 'item': u'/usr', u'rc': 0, u'invocation': {u'module_args': {u'warn': True, u'executable': None, u'_uses_shell': True, u'strip_empty_ends': True, u'_raw_params': u"df -k /usr | tail -1 | awk '{print $4}'", u'removes': None, u'argv': None, u'creates': None, u'chdir': None, u'stdin_add_newline': True, u'stdin': None}}, 'stdout_lines': [u'4138632'], u'start': u'2021-05-31 17:04:00.995471'}) 
+skipping: [XXXX.net] => (item={'stderr_lines': [], 'ansible_loop_var': u'item', u'end': u'2021-05-31 17:04:03.917394', u'stderr': u'', u'stdout': u'8338792', u'changed': False, 'failed': False, u'delta': u'0:00:00.010994', u'cmd': u"df -k /tmp | tail -1 | awk '{print $4}'", 'item': u'/tmp', u'rc': 0, u'invocation': {u'module_args': {u'warn': True, u'executable': None, u'_uses_shell': True, u'strip_empty_ends': True, u'_raw_params': u"df -k /tmp | tail -1 | awk '{print $4}'", u'removes': None, u'argv': None, u'creates': None, u'chdir': None, u'stdin_add_newline': True, u'stdin': None}}, 'stdout_lines': [u'8338792'], u'start': u'2021-05-31 17:04:03.906400'}) 
+
+TASK [pre_patching_validation : Space validation failed] ***********************
+skipping: [XXXX.net]
+
+TASK [pre_patching_validation : Get available space on boot filesystem] ********
+ok: [XXXX.net]
+
+TASK [pre_patching_validation : Validate space on boot filesystem] *************
+skipping: [XXXX.net]
+
+TASK [pre_patching_validation : Space validation failed for boot filesystem] ***
+skipping: [XXXX.net]
+
+TASK [pre_patching_validation : Check current CPU usage] ***********************
+ok: [XXXX.net]
+
+TASK [pre_patching_validation : Validate CPU usage] ****************************
+skipping: [XXXX.net]
+
+TASK [pre_patching_validation : Check current memory usage] ********************
+ok: [XXXX.net]
+
+TASK [pre_patching_validation : Validate memory usage] *************************
+skipping: [XXXX.net]
+
+TASK [pre_patching_validation : Cluster validation] ****************************
+included: /tmp/awx_2559534_0pc48rxy/project/roles/pre_patching_validation/tasks/cluster_validation.yml for XXXX.net
+
+TASK [pre_patching_validation : Check cluster status in case of PCS cluster] ***
+ok: [XXXX.net]
+
+TASK [pre_patching_validation : Check cluster status in case of RGManager] *****
+ok: [XXXX.net]
+
+TASK [pre_patching_validation : Cluster validation] ****************************
+skipping: [XXXX.net]
+
+TASK [pre_patching_validation : Check which archive utility to use] ************
+included: /tmp/awx_2559534_0pc48rxy/project/roles/pre_patching_validation/tasks/fetch_archive_util.yml for XXXX.net
+
+TASK [pre_patching_validation : Check if zip utility exists] *******************
+ok: [XXXX.net]
+
+TASK [pre_patching_validation : Check if tar utility exists] *******************
+ok: [XXXX.net]
+
+TASK [pre_patching_validation : Check if gzip utility exists] ******************
+skipping: [XXXX.net]
+
+TASK [pre_patching_validation : Fetch available archive utility] ***************
+ok: [XXXX.net]
+
+TASK [pre_patching_validation : Valid archive utility not found] ***************
+skipping: [XXXX.net]
+
+TASK [pre_patching_validation : Additional steps for ubuntu OS] ****************
+skipping: [XXXX.net]
+
+TASK [pre_patching_validation : Validation failed] *****************************
+skipping: [XXXX.net]
+
+TASK [pre_patching_validation : Validation successful] *************************
+ok: [XXXX.net]
+
+TASK [pre_patching_validation : Define output file name] ***********************
+ok: [XXXX.net]
+
+TASK [pre_patching_validation : Capture the system diagnostic data and post it to a local file] ***
+changed: [XXXX.net]
+
+TASK [pre_patching_validation : Capture the system diagnostic data for ubuntu] ***
+skipping: [XXXX.net]
+
+TASK [pre_patching_validation : Update validation_msg] *************************
+ok: [XXXX.net]
+
+TASK [pre_patching_validation : Backup configuration for RHEL and CentOS] ******
+included: /tmp/awx_2559534_0pc48rxy/project/roles/pre_patching_validation/tasks/config_backup_rhel.yml for XXXX.net
+
+TASK [pre_patching_validation : Create temp directory to save configuration data] ***
+ok: [XXXX.net]
+
+TASK [pre_patching_validation : Save config data] ******************************
+changed: [XXXX.net]
+
+TASK [pre_patching_validation : Define dest file format] ***********************
+ok: [XXXX.net]
+
+TASK [pre_patching_validation : Archive the content] ***************************
+changed: [XXXX.net]
+
+TASK [pre_patching_validation : Backup configuration for SLES] *****************
+skipping: [XXXX.net]
+
+TASK [pre_patching_validation : Fetch files to Tower from endpoints] ***********
+changed: [XXXX.net]
+
+TASK [pre_patching_validation : jumphop selection] *****************************
+included: /tmp/awx_2559534_0pc48rxy/project/roles/pre_patching_validation/tasks/jumphop_selection.yml for XXXX.net
+
+TASK [pre_patching_validation : get jh_ssh_private_key_files] ******************
+ok: [XXXX.net]
+
+TASK [pre_patching_validation : set jh_* values for 4hop] **********************
+skipping: [XXXX.net]
+
+TASK [pre_patching_validation : set jh_* values for 3hop] **********************
+skipping: [XXXX.net]
+
+TASK [pre_patching_validation : set jh_* values for 2hop] **********************
+ok: [XXXX.net]
+
+TASK [pre_patching_validation : set jh_* values for 1hop] **********************
+skipping: [XXXX.net]
+
+TASK [pre_patching_validation : Copy files from Tower to Jumphost] *************
+changed: [XXXX.net -> 66.129.239.72]
+
+TASK [pre_patching_validation : Backup configuration successful] ***************
+ok: [XXXX.net]
+
+TASK [pre_patching_validation : Backup configuration failed] *******************
+skipping: [XXXX.net]
+
+TASK [pre_patching_validation : debug] *****************************************
+ok: [XXXX.net] => {
+    "validation_msg": "Pre check validations have been successful. System diagnostic data captured in below file: /var/log/XXXX_Pre_Patch_config_31052021.txt Backup configuration to the jumphost is successful Please refer below file: /tmp/XXXX_linux_patching_20210531.tar"
+}
+
+TASK [pre_patching_validation : Set exec_message] ******************************
+ok: [XXXX.net]
+
+TASK [centos_patching : set exec_message] **************************************
+ok: [XXXX.net]
+
+TASK [centos_patching : debug] *************************************************
+ok: [XXXX.net] => {
+    "exec_message": "Pre check validations have been successful. System diagnostic data captured in below file: /var/log/XXXX_Pre_Patch_config_31052021.txt Backup configuration to the jumphost is successful Please refer below file: /tmp/XXXX_linux_patching_20210531.tar ==============Patching started================= Host name and version details: CentOS 7.9    patch_type: rcp_all"
+}
+
+TASK [centos_patching : run yum all update on host - update & upgrade] *********
+included: /tmp/awx_2559534_0pc48rxy/project/roles/centos_patching/tasks/update_rcp.yml for XXXX.net
+
+TASK [centos_patching : running update_all/rcp_all on host - update & upgrade] ***
+ok: [XXXX.net]
+
+TASK [centos_patching : debug] *************************************************
+ok: [XXXX.net] => {
+    "update_rcp_result.results": [
+        "Nothing to do here, all packages are up to date"
+    ]
+}
+
+TASK [centos_patching : Nothing to do here, all packages are up to date] *******
+ok: [XXXX.net]
+
+TASK [centos_patching : patches installed successfully] ************************
+skipping: [XXXX.net]
+
+TASK [centos_patching : failure - patches not installed] ***********************
+skipping: [XXXX.net]
+
+TASK [centos_patching : run yum bugfix update on host] *************************
+skipping: [XXXX.net]
+
+TASK [centos_patching : run security_all on host] ******************************
+skipping: [XXXX.net]
+
+TASK [centos_patching : create a list from input package(s)] *******************
+skipping: [XXXX.net]
+
+TASK [centos_patching : running for patch set(s)] ******************************
+skipping: [XXXX.net]
+
+TASK [centos_patching : debug] *************************************************
+ok: [XXXX.net] => {
+    "exec_message": " Pre check validations have been successful. System diagnostic data captured in below file: /var/log/XXXX_Pre_Patch_config_31052021.txt Backup configuration to the jumphost is successful Please refer below file: /tmp/XXXX_linux_patching_20210531.tar ==============Patching started================= Host name and version details: CentOS 7.9    patch_type: rcp_all ======> Patching result: Nothing to do here, all packages are up to date <====== "
+}
+
+TASK [post_patching_validation : Get OS flavor] ********************************
+ok: [XXXX.net]
+
+TASK [post_patching_validation : Run autoremove] *******************************
+skipping: [XXXX.net]
+
+TASK [post_patching_validation : Removed unused dependency packages] ***********
+skipping: [XXXX.net]
+
+TASK [post_patching_validation : Reboot the server] ****************************
+skipping: [XXXX.net]
+
+TASK [post_patching_validation : Reboot successful] ****************************
+skipping: [XXXX.net]
+
+TASK [post_patching_validation : Define output file name] **********************
+ok: [XXXX.net]
+
+TASK [post_patching_validation : Capture the system diagnostic data and post it to a local file] ***
+ok: [XXXX.net]
+
+TASK [post_patching_validation : Capture the system diagnostic data for ubuntu] ***
+skipping: [XXXX.net]
+
+TASK [post_patching_validation : Fetch pre patching file] **********************
+ok: [XXXX.net]
+
+TASK [post_patching_validation : Compare pre and post patching data] ***********
+ok: [XXXX.net]
+
+TASK [post_patching_validation : Difference found between pre and post patching configuration] ***
+ok: [XXXX.net]
+
+TASK [debug] *******************************************************************
+ok: [XXXX.net] => {
+    "exec_message": " Pre check validations have been successful. System diagnostic data captured in below file: /var/log/XXXX_Pre_Patch_config_31052021.txt Backup configuration to the jumphost is successful Please refer below file: /tmp/XXXX_linux_patching_20210531.tar ==============Patching started================= Host name and version details: CentOS 7.9    patch_type: rcp_all ======> Patching result: Nothing to do here, all packages are up to date <======  Refer below files to get the details of pre and post patching configuration: /var/log/XXXX_Post_Patch_config_31052021.txt /var/log/XXXX_Pre_Patch_config_31052021.txt"
+}
+
+PLAY RECAP *********************************************************************
+localhost                  : ok=7    changed=1    unreachable=0    failed=0    skipped=1    rescued=0    ignored=0   
+XXXX.net        : ok=48   changed=5    unreachable=0    failed=0    skipped=34   rescued=0    ignored=0   
+

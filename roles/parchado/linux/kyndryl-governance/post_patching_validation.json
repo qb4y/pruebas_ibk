@@ -1,0 +1,96 @@
+{
+	"definitions": {},
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "https://github.kyndryl.net/Continuous-Engineering/ansible_collection_patching_unix/kyndryl-governance/post_patching_validation.json",
+	"title": "Linux Post Patching Validation Common Variables",
+	"type": "object",
+	"required": [],
+	"properties": {
+        "reboot_required": {
+            "$id": "#root/reboot_required",
+			"title": "Reboot Required?",
+			"description": "Server reboot required post patching?",
+			"type": "boolean",
+			"default": false
+		},
+        "force_reboot": {
+            "$id": "#root/force_reboot",
+			"title": "Force Reboot?",
+			"description": "Server still needs to be rebooted even if server is already up-to-date? reboot_required variable needs to be set to true to enable this feature.",
+			"type": "boolean",
+			"default": false
+		},
+        "fail_on_error": {
+            "$id": "#root/fail_on_error",
+			"title": "Fail the execution if error occurs?",
+			"description": "Switch to decide whether execution should fail in case of unsuccessful patching.",
+			"type": "boolean",
+			"default": true
+		},
+		"teams_notification": {
+            "$id": "#root/teams_notification",
+			"title": "Teams Notification Required?",
+			"description": "Switch to decide whether MS Teams notification is required.",
+			"type": "boolean",
+			"default": false
+		},
+		"channel_webhook_url": {
+            "$id": "#root/channel_webhook_url",
+            "title": "Channel Webhook url",
+            "description": "MS Teams channel webhook url to receive notifications.",
+            "type": "string",
+            "default": "",
+            "pattern": "^(https?:\\/\\/.*)?$"
+        },
+		"send_email": {
+            "$id": "#root/send_email",
+			"title": "Email Notification Required?",
+			"description": "Switch to decide whether email notification is required.",
+			"type": "boolean",
+			"default": false
+		},
+		"recipients": {
+            "$id": "#root/recipients",
+            "title": "List of email recipients",
+            "description": "List of email recipients in array format.",
+            "type": "array",
+            "items": {
+                "type": "string",
+                "pattern": "^.*@.*$"
+            }
+        },
+        "smtp_port": {
+            "$id": "#root/smtp_port",
+            "title": "SMTP Port",
+            "description": "SMTP port.",
+            "type": "integer",
+            "default": "25",
+            "minimum": 1,
+            "maximum": 65535
+        },
+		"smtp_host_ip": {
+            "$id": "#root/smtp_host_ip",
+            "title": "SMTP host IP address",
+            "description": "SMTP host IP address.",
+            "type": "string",
+            "default": "",
+            "pattern": "^\\d+\\.\\d+\\.\\d+\\.\\d+$"
+        },
+		"service_restart_list": {
+            "$id": "#root/service_restart_list",
+            "title": "OS services to be restarted",
+            "description": "Comma separated list of OS services which need to be stopped before patching and started after successful patching.",
+            "type": "string",
+            "default": "",
+            "pattern": "^.*$"
+        },
+		"app_service_start_script": {
+            "$id": "#root/app_service_start_script",
+            "title": "Script to start application services",
+            "description": "Absolute path to the script to start application services before patching.",
+            "type": "string",
+            "default": "",
+            "pattern": "^/?.*$"
+		}
+	}
+}

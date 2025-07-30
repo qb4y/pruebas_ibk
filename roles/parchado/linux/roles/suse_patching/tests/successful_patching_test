@@ -1,0 +1,394 @@
+Identity added: /tmp/awx_2659520_a037wak2/artifacts/2659520/ssh_key_data (/tmp/awx_2659520_a037wak2/artifacts/2659520/ssh_key_data)
+
+PLAY [Prepare SFS upload environment] ******************************************
+
+TASK [Prepare] *****************************************************************
+
+TASK [sfs_upload : Prepare for data upload from Tower to SFS] ******************
+included: /tmp/awx_2659520_a037wak2/requirements_roles/sfs_upload/tasks/prepare.yml for localhost
+
+TASK [sfs_upload : Define command and parameters for Tower API access] *********
+ok: [localhost]
+
+TASK [sfs_upload : Get current Inventory from Tower] ***************************
+ok: [localhost]
+
+TASK [sfs_upload : Get current Job template from Tower] ************************
+ok: [localhost]
+
+TASK [sfs_upload : Register reusable run-time facts] ***************************
+ok: [localhost]
+
+TASK [sfs_upload : Set full path to temporary folder for data on Tower] ********
+ok: [localhost]
+
+TASK [sfs_upload : Create a temporary folder for data on Tower] ****************
+changed: [localhost]
+
+TASK [sfs_upload : Upload data from Tower to SFS] ******************************
+skipping: [localhost]
+
+PLAY [all] *********************************************************************
+
+TASK [Gathering Facts] *********************************************************
+ok: [XXXX.abc.com]
+ok: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Get OS flavor] *********************************
+ok: [XXXX.abc.com]
+ok: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Patch source validation] ***********************
+included: /tmp/awx_2659520_a037wak2/project/roles/pre_patching_validation/tasks/patch_source_validation.yml for XXXX.abc.com, YYYY.abc.com
+
+TASK [pre_patching_validation : Verify proxy] **********************************
+skipping: [XXXX.abc.com]
+skipping: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Verify subscription status] ********************
+skipping: [XXXX.abc.com]
+skipping: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Set repo server registation command for Ubuntu] ***
+skipping: [XXXX.abc.com]
+skipping: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Verify repo server registration] ***************
+skipping: [XXXX.abc.com]
+skipping: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Verify Suse product registration] **************
+[WARNING]: Consider using the zypper module rather than running 'zypper'.  If
+you need to use command because zypper is insufficient you can add 'warn:
+false' to this command task or set 'command_warnings=False' in ansible.cfg to
+get rid of this message.
+ok: [XXXX.abc.com]
+ok: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Invalid patching source] ***********************
+skipping: [XXXX.abc.com]
+skipping: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Patch source validation] ***********************
+ok: [XXXX.abc.com]
+ok: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Set validation_msg] ****************************
+skipping: [XXXX.abc.com]
+skipping: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Space validation for rhel and centos] **********
+skipping: [XXXX.abc.com]
+skipping: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Space validation for ubuntu and suse] **********
+included: /tmp/awx_2659520_a037wak2/project/roles/pre_patching_validation/tasks/space_validation_ubuntu_suse.yml for XXXX.abc.com, YYYY.abc.com
+
+TASK [pre_patching_validation : Get available space] ***************************
+ok: [XXXX.abc.com] => (item=/)
+ok: [YYYY.abc.com] => (item=/)
+ok: [XXXX.abc.com] => (item=/var)
+ok: [YYYY.abc.com] => (item=/var)
+ok: [XXXX.abc.com] => (item=/usr)
+ok: [YYYY.abc.com] => (item=/usr)
+ok: [XXXX.abc.com] => (item=/tmp)
+ok: [YYYY.abc.com] => (item=/tmp)
+
+TASK [pre_patching_validation : Validate space] ********************************
+skipping: [XXXX.abc.com] => (item={'stderr_lines': [], 'ansible_loop_var': u'item', u'end': u'2021-06-12 18:00:09.530143', u'stderr': u'', u'stdout': u'32702208', u'changed': False, 'failed': False, u'delta': u'0:00:00.004645', u'cmd': u"df -k / | tail -1 | awk '{print $4}'", 'item': u'/', u'rc': 0, u'invocation': {u'module_args': {u'warn': True, u'executable': None, u'_uses_shell': True, u'strip_empty_ends': True, u'_raw_params': u"df -k / | tail -1 | awk '{print $4}'", u'removes': None, u'argv': None, u'creates': None, u'chdir': None, u'stdin_add_newline': True, u'stdin': None}}, 'stdout_lines': [u'32702208'], u'start': u'2021-06-12 18:00:09.525498'}) 
+skipping: [XXXX.abc.com] => (item={'stderr_lines': [], 'ansible_loop_var': u'item', u'end': u'2021-06-12 18:00:10.588932', u'stderr': u'', u'stdout': u'32702208', u'changed': False, 'failed': False, u'delta': u'0:00:00.004811', u'cmd': u"df -k /var | tail -1 | awk '{print $4}'", 'item': u'/var', u'rc': 0, u'invocation': {u'module_args': {u'warn': True, u'executable': None, u'_uses_shell': True, u'strip_empty_ends': True, u'_raw_params': u"df -k /var | tail -1 | awk '{print $4}'", u'removes': None, u'argv': None, u'creates': None, u'chdir': None, u'stdin_add_newline': True, u'stdin': None}}, 'stdout_lines': [u'32702208'], u'start': u'2021-06-12 18:00:10.584121'}) 
+skipping: [XXXX.abc.com] => (item={'stderr_lines': [], 'ansible_loop_var': u'item', u'end': u'2021-06-12 18:00:11.696205', u'stderr': u'', u'stdout': u'32702208', u'changed': False, 'failed': False, u'delta': u'0:00:00.004758', u'cmd': u"df -k /usr | tail -1 | awk '{print $4}'", 'item': u'/usr', u'rc': 0, u'invocation': {u'module_args': {u'warn': True, u'executable': None, u'_uses_shell': True, u'strip_empty_ends': True, u'_raw_params': u"df -k /usr | tail -1 | awk '{print $4}'", u'removes': None, u'argv': None, u'creates': None, u'chdir': None, u'stdin_add_newline': True, u'stdin': None}}, 'stdout_lines': [u'32702208'], u'start': u'2021-06-12 18:00:11.691447'}) 
+skipping: [XXXX.abc.com] => (item={'stderr_lines': [], 'ansible_loop_var': u'item', u'end': u'2021-06-12 18:00:12.717234', u'stderr': u'', u'stdout': u'32702208', u'changed': False, 'failed': False, u'delta': u'0:00:00.004743', u'cmd': u"df -k /tmp | tail -1 | awk '{print $4}'", 'item': u'/tmp', u'rc': 0, u'invocation': {u'module_args': {u'warn': True, u'executable': None, u'_uses_shell': True, u'strip_empty_ends': True, u'_raw_params': u"df -k /tmp | tail -1 | awk '{print $4}'", u'removes': None, u'argv': None, u'creates': None, u'chdir': None, u'stdin_add_newline': True, u'stdin': None}}, 'stdout_lines': [u'32702208'], u'start': u'2021-06-12 18:00:12.712491'}) 
+skipping: [YYYY.abc.com] => (item={'stderr_lines': [], 'ansible_loop_var': u'item', u'end': u'2021-06-12 18:00:09.741099', u'stderr': u'', u'stdout': u'37289984', u'changed': False, 'failed': False, u'delta': u'0:00:00.004514', u'cmd': u"df -k / | tail -1 | awk '{print $4}'", 'item': u'/', u'rc': 0, u'invocation': {u'module_args': {u'warn': True, u'executable': None, u'_uses_shell': True, u'strip_empty_ends': True, u'_raw_params': u"df -k / | tail -1 | awk '{print $4}'", u'removes': None, u'argv': None, u'creates': None, u'chdir': None, u'stdin_add_newline': True, u'stdin': None}}, 'stdout_lines': [u'37289984'], u'start': u'2021-06-12 18:00:09.736585'}) 
+skipping: [YYYY.abc.com] => (item={'stderr_lines': [], 'ansible_loop_var': u'item', u'end': u'2021-06-12 18:00:10.826262', u'stderr': u'', u'stdout': u'37289984', u'changed': False, 'failed': False, u'delta': u'0:00:00.004289', u'cmd': u"df -k /var | tail -1 | awk '{print $4}'", 'item': u'/var', u'rc': 0, u'invocation': {u'module_args': {u'warn': True, u'executable': None, u'_uses_shell': True, u'strip_empty_ends': True, u'_raw_params': u"df -k /var | tail -1 | awk '{print $4}'", u'removes': None, u'argv': None, u'creates': None, u'chdir': None, u'stdin_add_newline': True, u'stdin': None}}, 'stdout_lines': [u'37289984'], u'start': u'2021-06-12 18:00:10.821973'}) 
+skipping: [YYYY.abc.com] => (item={'stderr_lines': [], 'ansible_loop_var': u'item', u'end': u'2021-06-12 18:00:12.024950', u'stderr': u'', u'stdout': u'37289984', u'changed': False, 'failed': False, u'delta': u'0:00:00.004266', u'cmd': u"df -k /usr | tail -1 | awk '{print $4}'", 'item': u'/usr', u'rc': 0, u'invocation': {u'module_args': {u'warn': True, u'executable': None, u'_uses_shell': True, u'strip_empty_ends': True, u'_raw_params': u"df -k /usr | tail -1 | awk '{print $4}'", u'removes': None, u'argv': None, u'creates': None, u'chdir': None, u'stdin_add_newline': True, u'stdin': None}}, 'stdout_lines': [u'37289984'], u'start': u'2021-06-12 18:00:12.020684'}) 
+skipping: [YYYY.abc.com] => (item={'stderr_lines': [], 'ansible_loop_var': u'item', u'end': u'2021-06-12 18:00:13.559559', u'stderr': u'', u'stdout': u'37289984', u'changed': False, 'failed': False, u'delta': u'0:00:00.004337', u'cmd': u"df -k /tmp | tail -1 | awk '{print $4}'", 'item': u'/tmp', u'rc': 0, u'invocation': {u'module_args': {u'warn': True, u'executable': None, u'_uses_shell': True, u'strip_empty_ends': True, u'_raw_params': u"df -k /tmp | tail -1 | awk '{print $4}'", u'removes': None, u'argv': None, u'creates': None, u'chdir': None, u'stdin_add_newline': True, u'stdin': None}}, 'stdout_lines': [u'37289984'], u'start': u'2021-06-12 18:00:13.555222'}) 
+
+TASK [pre_patching_validation : Space validation failed] ***********************
+skipping: [XXXX.abc.com]
+skipping: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Get available space on boot filesystem] ********
+ok: [XXXX.abc.com]
+ok: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Validate space on boot filesystem] *************
+skipping: [XXXX.abc.com]
+skipping: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Space validation failed for boot filesystem] ***
+skipping: [XXXX.abc.com]
+skipping: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Check current CPU usage] ***********************
+ok: [XXXX.abc.com]
+ok: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Validate CPU usage] ****************************
+skipping: [XXXX.abc.com]
+skipping: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Check current memory usage] ********************
+ok: [XXXX.abc.com]
+ok: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Validate memory usage] *************************
+skipping: [XXXX.abc.com]
+skipping: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Cluster validation] ****************************
+included: /tmp/awx_2659520_a037wak2/project/roles/pre_patching_validation/tasks/cluster_validation.yml for XXXX.abc.com, YYYY.abc.com
+
+TASK [pre_patching_validation : Check cluster status in case of PCS cluster] ***
+ok: [XXXX.abc.com]
+ok: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Check cluster status in case of RGManager] *****
+ok: [XXXX.abc.com]
+ok: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Cluster validation] ****************************
+skipping: [XXXX.abc.com]
+skipping: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Check which archive utility to use] ************
+included: /tmp/awx_2659520_a037wak2/project/roles/pre_patching_validation/tasks/fetch_archive_util.yml for XXXX.abc.com, YYYY.abc.com
+
+TASK [pre_patching_validation : Check if zip utility exists] *******************
+ok: [XXXX.abc.com]
+ok: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Check if tar utility exists] *******************
+skipping: [XXXX.abc.com]
+skipping: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Check if gzip utility exists] ******************
+skipping: [XXXX.abc.com]
+skipping: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Fetch available archive utility] ***************
+ok: [XXXX.abc.com]
+ok: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Valid archive utility not found] ***************
+skipping: [XXXX.abc.com]
+skipping: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Additional steps for ubuntu OS] ****************
+skipping: [XXXX.abc.com]
+skipping: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Validation failed] *****************************
+skipping: [XXXX.abc.com]
+skipping: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Validation successful] *************************
+ok: [XXXX.abc.com]
+ok: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Define output file name] ***********************
+ok: [XXXX.abc.com]
+ok: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Capture the system diagnostic data and post it to a local file] ***
+changed: [XXXX.abc.com]
+changed: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Capture the system diagnostic data for ubuntu] ***
+skipping: [XXXX.abc.com]
+skipping: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Update validation_msg] *************************
+ok: [XXXX.abc.com]
+ok: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Backup configuration for RHEL and CentOS] ******
+skipping: [XXXX.abc.com]
+skipping: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Backup configuration for SLES] *****************
+included: /tmp/awx_2659520_a037wak2/project/roles/pre_patching_validation/tasks/config_backup_sles.yml for XXXX.abc.com, YYYY.abc.com
+
+TASK [pre_patching_validation : Create temp directory to save configuration data] ***
+changed: [XXXX.abc.com]
+ok: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Save config data] ******************************
+changed: [XXXX.abc.com]
+changed: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Define dest file format] ***********************
+ok: [XXXX.abc.com]
+ok: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Archive the content] ***************************
+changed: [XXXX.abc.com]
+changed: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Fetch files to Tower from endpoints] ***********
+changed: [XXXX.abc.com]
+changed: [YYYY.abc.com]
+
+TASK [pre_patching_validation : jumphop selection] *****************************
+included: /tmp/awx_2659520_a037wak2/project/roles/pre_patching_validation/tasks/jumphop_selection.yml for XXXX.abc.com, YYYY.abc.com
+
+TASK [pre_patching_validation : get jh_ssh_private_key_files] ******************
+ok: [XXXX.abc.com]
+ok: [YYYY.abc.com]
+
+TASK [pre_patching_validation : set jh_* values for 4hop] **********************
+skipping: [XXXX.abc.com]
+skipping: [YYYY.abc.com]
+
+TASK [pre_patching_validation : set jh_* values for 3hop] **********************
+ok: [XXXX.abc.com]
+ok: [YYYY.abc.com]
+
+TASK [pre_patching_validation : set jh_* values for 2hop] **********************
+skipping: [XXXX.abc.com]
+skipping: [YYYY.abc.com]
+
+TASK [pre_patching_validation : set jh_* values for 1hop] **********************
+skipping: [XXXX.abc.com]
+skipping: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Copy files from Tower to Jumphost] *************
+changed: [YYYY.abc.com -> 198.18.180.195]
+ok: [XXXX.abc.com -> 198.18.180.195]
+
+TASK [pre_patching_validation : Backup configuration successful] ***************
+ok: [XXXX.abc.com]
+ok: [YYYY.abc.com]
+
+TASK [pre_patching_validation : Backup configuration failed] *******************
+skipping: [XXXX.abc.com]
+skipping: [YYYY.abc.com]
+
+TASK [pre_patching_validation : debug] *****************************************
+ok: [XXXX.abc.com] => {
+    "validation_msg": "Pre check validations have been successful. System diagnostic data captured in below file: /var/log/YYYY_Pre_Patch_config_12062021.txt Backup configuration to the jumphost is successful Please refer below file: /tmp/YYYY_linux_patching_20210612.zip"
+}
+ok: [YYYY.abc.com] => {
+    "validation_msg": "Pre check validations have been successful. System diagnostic data captured in below file: /var/log/XXXX_Pre_Patch_config_12062021.txt Backup configuration to the jumphost is successful Please refer below file: /tmp/XXXX_linux_patching_20210612.zip"
+}
+
+TASK [pre_patching_validation : Set exec_message] ******************************
+ok: [XXXX.abc.com]
+ok: [YYYY.abc.com]
+
+TASK [suse_patching : set exec_message] ****************************************
+ok: [XXXX.abc.com]
+ok: [YYYY.abc.com]
+
+TASK [suse_patching : debug] ***************************************************
+ok: [XXXX.abc.com] => {
+    "exec_message": " Pre check validations have been successful. System diagnostic data captured in below file: /var/log/YYYY_Pre_Patch_config_12062021.txt Backup configuration to the jumphost is successful Please refer below file: /tmp/YYYY_linux_patching_20210612.zip ==============Patching started================= Host name and version details: SLES_SAP 12.3    patch_type: update_all"
+}
+ok: [YYYY.abc.com] => {
+    "exec_message": " Pre check validations have been successful. System diagnostic data captured in below file: /var/log/XXXX_Pre_Patch_config_12062021.txt Backup configuration to the jumphost is successful Please refer below file: /tmp/XXXX_linux_patching_20210612.zip ==============Patching started================= Host name and version details: SLES_SAP 12.3    patch_type: update_all"
+}
+
+TASK [suse_patching : run zypper update on host - update & upgrade] ************
+included: /tmp/awx_2659520_a037wak2/project/roles/suse_patching/tasks/install_rcp_deviations.yml for XXXX.abc.com, YYYY.abc.com
+
+TASK [suse_patching : run zypper update on host - update & upgrade] ************
+changed: [XXXX.abc.com]
+changed: [YYYY.abc.com]
+
+TASK [suse_patching : debug] ***************************************************
+ok: [XXXX.abc.com] => {
+    "update_rcp_result.stdout": "<?xml version='1.0'?>\\n<stream>\\n<install-summary download-size=\\"0\\" space-usage-diff=\\"234595\\" packages-to-change=\\"44\\">\\n<to-upgrade>\\n<solvable type=\\"package\\" name=\\"bash\\" edition=\\"4.3-83.26.4\\" arch=\\"ppc64le\\" edition-old=\\"4.3-83.23.1\\" arch-old=\\"ppc64le\\" summary=\\"The GNU Bourne-Again Shell\\">\\n<description>Bash is an sh-compatible command interpreter that executes commands\\nread from standard input or from a file.  Bash incorporates useful\\nfeatures from the Korn and C shells (ksh and csh).  Bash is intended to\\nbe a conformant implementation of the IEEE Posix Shell and Tools\\nspecification (IEEE Working Group 1003.2).</description></solvable>\\n<solvable type=\\"package\\" name=\\"bash-doc\\" edition=\\"4.3-83.26.4\\" arch=\\"noarch\\" edition-old=\\"4.3-83.23.1\\" arch-old=\\"noarch\\" summary=\\"Documentation how to Use the GNU Bourne-Again Shell\\">\\n<description>This package contains the documentation for using the bourne shell\\ninterpreter Bash.</description></solvable>\\n<solvable type=\\"package\\" name=\\"bind-libs\\" edition=\\"9.9.9P1-63.25.1\\" arch=\\"ppc64le\\" edition-old=\\"9.9.9P1-63.20.1\\" arch-old=\\"ppc64le\\" summary=\\"Shared libraries of BIND\\">\\n<description>This package contains the shared libraries of the Berkeley Internet\\nName Domain (BIND) Domain Name System implementation of the Domain Name\\nSystem (DNS) protocols.</description></solvable>\\n<solvable type=\\"package\\" name=\\"bind-utils\\" edition=\\"9.9.9P1-63.25.1\\" arch=\\"ppc64le\\" edition-old=\\"9.9.9P1-63.20.1\\" arch-old=\\"ppc64le\\" summary=\\"Utilities to query and test DNS\\">\\n<description>This package includes the utilities host, dig, and nslookup used to\\ntest and query the Domain Name System (DNS).  The Berkeley Internet\\nName Domain (BIND) DNS server is found in the package named bind.</description></solvable>\\n<solvable type=\\"package\\" name=\\"cifs-utils\\" edition=\\"6.9-9.15.1\\" arch=\\"ppc64le\\" edition-old=\\"6.5-9.3.2\\" arch-old=\\"ppc64le\\" summary=\\"Utilities for doing and managing mounts of the Linux CIFS filesystem\\">\\n<description>The cifs-utils package consist of utilities for doing and managing mounts of\\nthe Linux CIFS filesystem.</description></solvable>\\n<solvable type=\\"package\\" name=\\"cups\\" edition=\\"1.7.5-20.36.1\\" arch=\\"ppc64le\\" edition-old=\\"1.7.5-20.29.1\\" arch-old=\\"ppc64le\\" summary=\\"The Common UNIX Printing System\\">\\n<description>The Common UNIX Printing System (CUPS) is the\\nstandards-based, open source printing system.\\n\\nSee http://www.cups.org\\n\\nCUPS &gt;= 1.6 has major incompatible changes compared to CUPS 1.5.\\nAfter a version upgrade to CUPS &gt;= 1.6 printing in the network\\nwould no longer work as it did up to CUPS 1.5.\\n\\nFor details regarding incompatible changes in CUPS &gt;= 1.6 see\\nhttps://bugzilla.novell.com/show_bug.cgi?id=735404\\nand follow the links therein.</description></solvable>\\n<solvable type=\\"package\\" name=\\"cups-client\\" edition=\\"1.7.5-20.36.1\\" arch=\\"ppc64le\\" edition-old=\\"1.7.5-20.29.1\\" arch-old=\\"ppc64le\\" summary=\\"CUPS Client Programs\\">\\n<description>The Common UNIX Printing System (CUPS) is the\\nstandards-based, open source printing system.\\n\\nSee http://www.cups.org\\n\\nThis package contains all programs needed\\nfor running a CUPS client, not a server.\\n\\nCUPS &gt;= 1.6 has major incompatible changes compared to CUPS 1.5.\\nAfter a version upgrade to CUPS &gt;= 1.6 printing in the network\\nwould no longer work as it did up to CUPS 1.5.\\n\\nFor details regarding incompatible changes in CUPS &gt;= 1.6 see\\nhttps://bugzilla.novell.com/show_bug.cgi?id=735404\\nand follow the links therein.</description></solvable>\\n<solvable type=\\"package\\" name=\\"cups-libs\\" edition=\\"1.7.5-20.36.1\\" arch=\\"ppc64le\\" edition-old=\\"1.7.5-20.29.1\\" arch-old=\\"ppc64le\\" summary=\\"Libraries for CUPS\\">\\n<description>The Common UNIX Printing System (CUPS) is the\\nstandards-based, open source printing system.\\n\\nSee http://www.cups.org\\n\\nThis package contains libraries needed by CUPS\\nand other packages.\\n\\nCUPS &gt;= 1.6 has major incompatible changes compared to CUPS 1.5.\\nAfter a version upgrade to CUPS &gt;= 1.6 printing in the network\\nwould no longer work as it did up to CUPS 1.5.\\n\\nFor details regarding incompatible changes in CUPS &gt;= 1.6 see\\nhttps://bugzilla.novell.com/show_bug.cgi?id=735404\\nand follow the links therein.</description></solvable>\\n<solvable type=\\"package\\" name=\\"gdm\\" edition=\\"3.10.0.1-54.20.1\\" arch=\\"ppc64le\\" edition-old=\\"3.10.0.1-54.17.2\\" arch-old=\\"ppc64le\\" summary=\\"The GNOME Display Manager\\">\\n<description>The GNOME Display Manager is a system service that is responsible for\\nproviding graphical log-ins and managing local and remote displays.</description></solvable>\\n<solvable type=\\"package\\" name=\\"gdmflexiserver\\" edition=\\"3.10.0.1-54.20.1\\" arch=\\"noarch\\" edition-old=\\"3.10.0.1-54.17.2\\" arch-old=\\"noarch\\" summary=\\"Gdmflexiserver Compatibility Wrapper for Display Managers\\">\\n<description>The gdmflexiserver tool interacts with the display manager to\\nenable fast user switching. This package contains a wrapper that\\nselects the correct gdmflexiserver implementatoin, based on the\\nrunning display manager.</description></solvable>\\n<solvable type=\\"package\\" name=\\"gdm-lang\\" edition=\\"3.10.0.1-54.20.1\\" arch=\\"noarch\\" edition-old=\\"3.10.0.1-54.17.2\\" arch-old=\\"noarch\\" summary=\\"Languages for package gdm\\">\\n<description>Provides translations to the package gdm</description></solvable>\\n<solvable type=\\"package\\" name=\\"libcap2\\" edition=\\"2.26-14.6.1\\" arch=\\"ppc64le\\" edition-old=\\"2.22-13.1\\" arch-old=\\"ppc64le\\" summary=\\"Library for Capabilities (linux-privs) Support\\">\\n<description>Capabilities are a measure to limit the omnipotence of the superuser.\\nCurrently a program started by root or setuid root has the power to do\\nanything. Capabilities (Linux-Privs) provide a more fine-grained access\\ncontrol. Without kernel patches, you can use this library to drop\\ncapabilities within setuid binaries. If you use patches, this can be\\ndone automatically by the kernel.</description></solvable>\\n<solvable type=\\"package\\" name=\\"libdcerpc0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"Distributed Computing Environment Remote Procedure Calls library\\">\\n<description>DCE/RPC, short for &quot;Distributed Computing Environment / Remote\\nProcedure Calls&quot;, is the remote procedure call system developed for\\nthe Distributed Computing Environment (DCE). This system allows\\nprogrammers to write distributed software as if it were all working\\non the same computer, without having to worry about the underlying\\nnetwork code.</description></solvable>\\n<solvable type=\\"package\\" name=\\"libdcerpc-binding0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"Some samba library\\"/>\\n<solvable type=\\"package\\" name=\\"libgdm1\\" edition=\\"3.10.0.1-54.20.1\\" arch=\\"ppc64le\\" edition-old=\\"3.10.0.1-54.17.2\\" arch-old=\\"ppc64le\\" summary=\\"Client Library for Communicating with GDM Greeter Server\\">\\n<description>The GNOME Display Manager is a system service that is responsible for\\nproviding graphical log-ins and managing local and remote displays.</description></solvable>\\n<solvable type=\\"package\\" name=\\"libhogweed2\\" edition=\\"2.7.1-13.3.1\\" arch=\\"ppc64le\\" edition-old=\\"2.7.1-12.1\\" arch-old=\\"ppc64le\\" summary=\\"Cryptographic Library for Public Key Algorithms\\">\\n<description>Nettle is a cryptographic library that is designed to fit easily in more or\\nless any context: In crypto toolkits for object-oriented languages (C++,\\nPython, Pike, ...), in applications like LSH or GNUPG, or even in kernel space.\\n\\nThe libhogweed library contains public key algorithms to use with libnettle.</description></solvable>\\n<solvable type=\\"package\\" name=\\"libndr0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"Network Data Representation library\\">\\n<description>Network Data Representation (NDR) is an implementation of the\\npresentation layer in the OSI model.</description></solvable>\\n<solvable type=\\"package\\" name=\\"libndr-krb5pac0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"NDR marshallers for the KRB5 PAC formats\\"/>\\n<solvable type=\\"package\\" name=\\"libndr-nbt0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"NDR marshallers for NBT formats\\"/>\\n<solvable type=\\"package\\" name=\\"libndr-standard0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"NDR marshallers for the standard set of DCE/RPC interfaces\\"/>\\n<solvable type=\\"package\\" name=\\"libnetapi0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"Samba netapi Library\\">\\n<description>This package includes the netapi library.</description></solvable>\\n<solvable type=\\"package\\" name=\\"libnettle4\\" edition=\\"2.7.1-13.3.1\\" arch=\\"ppc64le\\" edition-old=\\"2.7.1-12.1\\" arch-old=\\"ppc64le\\" summary=\\"Cryptographic Library\\">\\n<description>Nettle is a cryptographic library that is designed to fit easily in more or\\nless any context: In crypto toolkits for object-oriented languages (C++,\\nPython, Pike, ...), in applications like LSH or GNUPG, or even in kernel space.</description></solvable>\\n<solvable type=\\"package\\" name=\\"libreadline6\\" edition=\\"6.3-83.26.4\\" arch=\\"ppc64le\\" edition-old=\\"6.3-83.23.1\\" arch-old=\\"ppc64le\\" summary=\\"The Readline Library\\">\\n<description>The readline library is used by the Bourne Again Shell (bash, the\\nstandard command interpreter) for easy editing of command lines.  This\\nincludes history and search functionality.</description></solvable>\\n<solvable type=\\"package\\" name=\\"libsamba-credentials0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"Samba credential management library\\"/>\\n<solvable type=\\"package\\" name=\\"libsamba-errors0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"Samba errors handling library\\"/>\\n<solvable type=\\"package\\" name=\\"libsamba-hostconfig0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"Host-wide Samba configuration library\\"/>\\n<solvable type=\\"package\\" name=\\"libsamba-passdb0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"Samba3 password database library\\"/>\\n<solvable type=\\"package\\" name=\\"libsamba-util0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"Samba utility function library\\"/>\\n<solvable type=\\"package\\" name=\\"libsamdb0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"Samba&apos;s SAM database library\\"/>\\n<solvable type=\\"package\\" name=\\"libsmbclient0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"Samba Client Library\\">\\n<description>This package includes the libsmbclient library.\\n\\nlibsmbclient is provided by the libsmbclient0 package.</description></solvable>\\n<solvable type=\\"package\\" name=\\"libsmbconf0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"Samba3 configuration library\\">\\n<description>libsmbconf is a library to read or, based on the backend, modify the\\nSamba configuration.</description></solvable>\\n<solvable type=\\"package\\" name=\\"libsmbldap0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"Samba LDAP protocol helper function library\\">\\n<description>libsmbldap contains LDAP protocol helper functions for Samba.</description></solvable>\\n<solvable type=\\"package\\" name=\\"libtevent-util0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"Samba tevent &lt;-&gt; system status code conversion utility library\\">\\n<description>The libtevent-util library contains functions to convert tevent error\\ncodes to platform-specific (errno, NTSTATUS, WERROR) ones.</description></solvable>\\n<solvable type=\\"package\\" name=\\"libwbclient0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"Samba libwbclient Library\\">\\n<description>This package includes the wbclient library.</description></solvable>\\n<solvable type=\\"package\\" name=\\"MozillaFirefox\\" edition=\\"78.10.0-112.57.2\\" arch=\\"ppc64le\\" edition-old=\\"78.9.0-112.54.1\\" arch-old=\\"ppc64le\\" summary=\\"Mozilla Firefox Web Browser\\">\\n<description>Mozilla Firefox is a standalone web browser, designed for standards\\ncompliance and performance.  Its functionality can be enhanced via a\\nplethora of extensions.</description></solvable>\\n<solvable type=\\"package\\" name=\\"MozillaFirefox-translations-common\\" edition=\\"78.10.0-112.57.2\\" arch=\\"ppc64le\\" edition-old=\\"78.9.0-112.54.1\\" arch-old=\\"ppc64le\\" summary=\\"Common translations for Firefox\\">\\n<description>This package contains several common languages for the user interface\\nof Firefox.</description></solvable>\\n<solvable type=\\"package\\" name=\\"python-cffi\\" edition=\\"1.11.5-5.16.2\\" arch=\\"ppc64le\\" edition-old=\\"1.11.2-5.11.1\\" arch-old=\\"ppc64le\\" summary=\\"Foreign Function Interface for Python calling C code\\">\\n<description>Foreign Function Interface for Python calling C code. The aim of this project\\nis to provide a convenient and reliable way of calling C code from Python.</description></solvable>\\n<solvable type=\\"package\\" name=\\"python-cryptography\\" edition=\\"2.8-7.37.8\\" arch=\\"ppc64le\\" edition-old=\\"2.1.4-7.34.1\\" arch-old=\\"ppc64le\\" summary=\\"Python library which exposes cryptographic recipes and primitives\\">\\n<description>cryptography is a package designed to expose cryptographic\\nrecipes and primitives to Python developers.  Our goal is\\nfor it to be your &quot;cryptographic standard library&quot;. It\\nsupports Python 2.7, Python 3.4+, and PyPy-5.3+.\\n\\ncryptography includes both high level recipes, and low\\nlevel interfaces to common cryptographic algorithms such as\\nsymmetric ciphers, message digests and key derivation\\nfunctions.</description></solvable>\\n<solvable type=\\"package\\" name=\\"readline-doc\\" edition=\\"6.3-83.26.4\\" arch=\\"noarch\\" edition-old=\\"6.3-83.23.1\\" arch-old=\\"noarch\\" summary=\\"Documentation how to Use and Program with the Readline Library\\">\\n<description>This package contains the documentation for using the readline library\\nas well as programming with the interface of the readline library.</description></solvable>\\n<solvable type=\\"package\\" name=\\"samba\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"A SMB/CIFS File, Print, and Authentication Server\\">\\n<description>Samba is a suite of programs that allows SMB/CIFS clients to use the\\nUnix file space, printers, and authentication subsystem.\\n\\nThe package named samba contains all programs that are needed to act as\\na server.  The binaries expect the configuration file to be found in\\n/etc/samba/smb.conf\\n\\nFor a more detailed description of Samba, check the samba-doc package\\nor the Samba.org Web page at https://www.Samba.org/\\n\\nPlease check https://en.openSUSE.org/Samba for general information on\\nSamba as part of SUSE Linux Enterprise or openSUSE products, links to\\nbinary packages of the most current Samba version, and a bug reporting\\nhow to.</description></solvable>\\n<solvable type=\\"package\\" name=\\"samba-client\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"Samba Client Utilities\\">\\n<description>Samba is a suite of programs that allows SMB/CIFS clients to use the\\nUnix file space, printers, and authentication subsystem.\\n\\nThe package named samba-client contains all programs that are needed to\\nact as a Samba client. The binaries expect the configuration file to\\nbe found in /etc/samba/smb.conf\\n\\nFor a more detailed description of Samba, check the samba-doc package\\nor the Samba.org Web page at https://www.Samba.org/\\n\\nPlease check https://en.openSUSE.org/Samba for general information on\\nSamba as part of SUSE Linux Enterprise or openSUSE products, links to\\nbinary packages of the most current Samba version, and a bug reporting\\nhow to.</description></solvable>\\n<solvable type=\\"package\\" name=\\"samba-libs\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"Samba libraries\\">\\n<description>The samba-libs package contains the libraries needed by programs that\\nlink against the SMB, RPC and other protocols provided by the Samba suite.</description></solvable>\\n<solvable type=\\"package\\" name=\\"supportutils\\" edition=\\"3.0.9-95.45.1\\" arch=\\"noarch\\" edition-old=\\"3.0.8-95.41.1\\" arch-old=\\"noarch\\" summary=\\"Support Troubleshooting Tools\\">\\n<description>A package containing troubleshooting tools. This package contains\\nthe following: supportconfig, chkbin, getappcore, analyzevmcore</description></solvable>\\n<solvable type=\\"package\\" name=\\"typelib-1_0-Gdm-1_0\\" edition=\\"3.10.0.1-54.20.1\\" arch=\\"ppc64le\\" edition-old=\\"3.10.0.1-54.17.2\\" arch-old=\\"ppc64le\\" summary=\\"Client Library for Communicating with GDM Greeter Server -- Introspection bindings\\">\\n<description>The GNOME Display Manager is a system service that is responsible for\\nproviding graphical log-ins and managing local and remote displays.\\n\\nThis package provides the GObject Introspection bindings for\\ncommunicating with the GDM greeter server.</description></solvable>\\n</to-upgrade>\\n<to-install>\\n<solvable type=\\"patch\\" name=\\"CL-SUSE-SLE-SAP-12-SP3-2021-1325\\" edition=\\"1\\" arch=\\"noarch\\" summary=\\"important: Security update for MozillaFirefox\\">\\n<description>This update for MozillaFirefox fixes the following issues:\\n\\n- Firefox was updated to 78.10.0 ESR (bsc#1184960)\\n  * CVE-2021-23994: Out of bound write due to lazy initialization\\n  * CVE-2021-23995: Use-after-free in Responsive Design Mode\\n  * CVE-2021-23998: Secure Lock icon could have been spoofed\\n  * CVE-2021-23961: More internal network hosts could have been probed by a malicious webpage\\n  * CVE-2021-23999: Blob URLs may have been granted additional privileges\\n  * CVE-2021-24002: Arbitrary FTP command execution on FTP servers using an encoded URL\\n  * CVE-2021-29945: Incorrect size computation in WebAssembly JIT could lead to null-reads\\n  * CVE-2021-29946: Port blocking could be bypassed\\n</description></solvable>\\n<solvable type=\\"patch\\" name=\\"CL-SUSE-SLE-SAP-12-SP3-2021-1336\\" edition=\\"1\\" arch=\\"noarch\\" summary=\\"Recommended update for libcap\\">\\n<description>This update for libcap fixes the following issues:\\n\\n- Add explicit dependency on &apos;libcap2&apos; with version to &apos;libcap-progs&apos;. (bsc#1184690, bsc#1184434)\\n</description></solvable>\\n<solvable type=\\"patch\\" name=\\"CL-SUSE-SLE-SAP-12-SP3-2021-1399\\" edition=\\"1\\" arch=\\"noarch\\" summary=\\"important: Security update for libnettle\\">\\n<description>This update for libnettle fixes the following issues:\\n\\n- CVE-2021-20305: Fixed the multiply function which was being called with out-of-range scalars (bsc#1184401, bsc#1183835).\\n</description></solvable>\\n<solvable type=\\"patch\\" name=\\"CL-SUSE-SLE-SAP-12-SP3-2021-1401\\" edition=\\"1\\" arch=\\"noarch\\" summary=\\"important: Security update for gdm\\">\\n<description>This update for gdm fixes the following issues:\\n\\n-  Avoid the signal SIGTRAP when gdm exits (bsc#1184456).\\n</description></solvable>\\n<solvable type=\\"patch\\" name=\\"CL-SUSE-SLE-SAP-12-SP3-2021-1453\\" edition=\\"1\\" arch=\\"noarch\\" summary=\\"important: Security update for cups\\">\\n<description>This update for cups fixes the following issues:\\n\\n- CVE-2021-25317: ownership of /var/log/cups could allow privilege escalation from lp user to root via symlink attacks (bsc#1184161)\\n</description></solvable>\\n<solvable type=\\"patch\\" name=\\"CL-SUSE-SLE-SAP-12-SP3-2021-1457\\" edition=\\"1\\" arch=\\"noarch\\" summary=\\"Recommended update for cifs-utils\\">\\n<description>This update for cifs-utils fixes the following issues:\\n\\n- Fixed a bug where it was no longer possible to mount CIFS filesystem after the\\n  last maintenance update (bsc#1184815)\\n</description></solvable>\\n<solvable type=\\"patch\\" name=\\"CL-SUSE-SLE-SAP-12-SP3-2021-1469\\" edition=\\"1\\" arch=\\"noarch\\" summary=\\"important: Security update for bind\\">\\n<description>This update for bind fixes the following issues:\\n\\n- CVE-2021-25214: Fixed a broken inbound incremental zone update (IXFR) which could have caused named to terminate unexpectedly (bsc#1185345).\\n- CVE-2021-25215: Fixed an assertion check which could have failed while answering queries for DNAME records that required the DNAME to be processed to resolve itself (bsc#1185345).\\n- CVE-2021-25216: Fixed an issue where policy negotiation can be targeted by a buffer overflow attack (bsc#1185345).\\n- MD5 warning message using host, dig, nslookup (bind-utils) with FIPS enabled (bsc#1181495).\\n</description></solvable>\\n<solvable type=\\"patch\\" name=\\"CL-SUSE-SLE-SAP-12-SP3-2021-1492\\" edition=\\"1\\" arch=\\"noarch\\" summary=\\"important: Security update for samba\\">\\n<description>This update for samba fixes the following issues:\\n\\n- CVE-2021-20254: Fixed a buffer overrun in sids_to_unixids() (bsc#1184677).\\n- Avoid free&apos;ing our own pointer in memcache when memcache_trim attempts to reduce cache size (bsc#1179156).\\n- Adjust smbcacls &apos;--propagate-inheritance&apos; feature to align with upstream (bsc#1178469).\\n</description></solvable>\\n<solvable type=\\"patch\\" name=\\"CL-SUSE-SLE-SAP-12-SP3-2021-1541\\" edition=\\"1\\" arch=\\"noarch\\" summary=\\"Recommended update for bash\\">\\n<description>This update for bash fixes the following issues:\\n\\n- Fixed a bug where the &apos;tailf&apos; command destroyed the terminal/console settings (bsc1177369)\\n</description></solvable>\\n<solvable type=\\"patch\\" name=\\"CL-SUSE-SLE-SAP-12-SP3-2021-1548\\" edition=\\"1\\" arch=\\"noarch\\" summary=\\"Recommended update for python-cryptography, python-cryptography-vectors, python-cffi, python-oslo.service\\">\\n<description>This update for python-cryptography, python-cryptography-vectors, python-cffi, python-oslo.service fixes the following issues:\\n\\n- Update in SLE-12 to allow refreshing the Azure SDK. (bsc#1176784, jsc#ECO-3105, jsc#PM-2352)\\n  </description></solvable>\\n<solvable type=\\"patch\\" name=\\"CL-SUSE-SLE-SAP-12-SP3-2021-1551\\" edition=\\"1\\" arch=\\"noarch\\" summary=\\"Recommended update for supportutils\\">\\n<description>This update for supportutils fixes the following issues:\\n\\n- Performance improvements on large systems (bsc#1127734)\\n- Added a check for package signatures in rpm.txt (bsc#1021918)\\n- Performance improvements when the &apos;find&apos; command is being used (bsc#1184911)\\n- Fixed a bug where the updates.txt file did not list products in XML format anymore (bsc#1181351)\\n- Fixed a bug where listing files under /sys fails when their names contain a backslash (bsc#1089870)\\n- Added drbd information and configuration details to drbd.txt (bsc#1063765)\\n- Added list-timers and list-jobs to systemd.txt (bsc#1169348)\\n- Fixed a bug where supportconfig only searched for nfs, but not for nfs4 in /etc/fstab (bsc#1184828)\\n- Added support for capturing rotated logs with different compression methods (bsc#1179188)\\n- Removed deprecated mii-tool (bsc#1043601)\\n- Added -u for HTTPS and -a for FTPES uploads to SUSE FTP servers (bsc#1051419)\\n</description></solvable>\\n</to-install>\\n<to-remove>\\n<solvable type=\\"application\\" name=\\"Firefox Web Browser\\" edition=\\"\\" arch=\\"noarch\\" summary=\\"Mozilla Firefox Web Browser\\">\\n<description>Mozilla Firefox is a standalone web browser, designed for privacy, security, standards\\ncompliance and performance. Its functionality can be enhanced via a plethora of extensions.\\n\\nFirefox makes your daily web browsing fun and easy with a number of features, including:\\n\\n  - Tabbed browsing\\n  - Private browsing including do-not-track enabled by default\\n  - Advanced phishing and malware protection\\n  - Spell checking\\n  - Incremental find within pages\\n  - Live bookmarking and Smart Bookmarks\\n  - Download manager\\n  - Location-aware browsing\\n  - Compliant with modern web standards\\n  - Modern web development tools\\n  - Available in a wide number of locales\\n  - A thriving ecosystem of themes and extensions at https://addons.mozilla.org</description></solvable>\\n</to-remove>\\n</install-summary>\\n<prompt id=\\"0\\">\\n<text>Continue?</text>\\n<option default=\\"1\\" value=\\"y\\" desc=\\"Yes, accept the summary and proceed with installation/removal of packages.\\"/>\\n<option value=\\"n\\" desc=\\"No, cancel the operation.\\"/>\\n<option value=\\"v\\" desc=\\"Toggle display of package versions.\\"/>\\n<option value=\\"a\\" desc=\\"Toggle display of package architectures.\\"/>\\n<option value=\\"r\\" desc=\\"Toggle display of repositories from which the packages will be installed.\\"/>\\n<option value=\\"m\\" desc=\\"Toggle display of package vendor names.\\"/>\\n<option value=\\"d\\" desc=\\"Toggle between showing all details and as few details as possible.\\"/>\\n<option value=\\"g\\" desc=\\"View the summary in pager.\\"/>\\n</prompt>\\n</stream>\\n"
+}
+ok: [YYYY.abc.com] => {
+    "update_rcp_result.stdout": "<?xml version='1.0'?>\\n<stream>\\n<install-summary download-size=\\"0\\" space-usage-diff=\\"234595\\" packages-to-change=\\"44\\">\\n<to-upgrade>\\n<solvable type=\\"package\\" name=\\"bash\\" edition=\\"4.3-83.26.4\\" arch=\\"ppc64le\\" edition-old=\\"4.3-83.23.1\\" arch-old=\\"ppc64le\\" summary=\\"The GNU Bourne-Again Shell\\">\\n<description>Bash is an sh-compatible command interpreter that executes commands\\nread from standard input or from a file.  Bash incorporates useful\\nfeatures from the Korn and C shells (ksh and csh).  Bash is intended to\\nbe a conformant implementation of the IEEE Posix Shell and Tools\\nspecification (IEEE Working Group 1003.2).</description></solvable>\\n<solvable type=\\"package\\" name=\\"bash-doc\\" edition=\\"4.3-83.26.4\\" arch=\\"noarch\\" edition-old=\\"4.3-83.23.1\\" arch-old=\\"noarch\\" summary=\\"Documentation how to Use the GNU Bourne-Again Shell\\">\\n<description>This package contains the documentation for using the bourne shell\\ninterpreter Bash.</description></solvable>\\n<solvable type=\\"package\\" name=\\"bind-libs\\" edition=\\"9.9.9P1-63.25.1\\" arch=\\"ppc64le\\" edition-old=\\"9.9.9P1-63.20.1\\" arch-old=\\"ppc64le\\" summary=\\"Shared libraries of BIND\\">\\n<description>This package contains the shared libraries of the Berkeley Internet\\nName Domain (BIND) Domain Name System implementation of the Domain Name\\nSystem (DNS) protocols.</description></solvable>\\n<solvable type=\\"package\\" name=\\"bind-utils\\" edition=\\"9.9.9P1-63.25.1\\" arch=\\"ppc64le\\" edition-old=\\"9.9.9P1-63.20.1\\" arch-old=\\"ppc64le\\" summary=\\"Utilities to query and test DNS\\">\\n<description>This package includes the utilities host, dig, and nslookup used to\\ntest and query the Domain Name System (DNS).  The Berkeley Internet\\nName Domain (BIND) DNS server is found in the package named bind.</description></solvable>\\n<solvable type=\\"package\\" name=\\"cifs-utils\\" edition=\\"6.9-9.15.1\\" arch=\\"ppc64le\\" edition-old=\\"6.5-9.3.2\\" arch-old=\\"ppc64le\\" summary=\\"Utilities for doing and managing mounts of the Linux CIFS filesystem\\">\\n<description>The cifs-utils package consist of utilities for doing and managing mounts of\\nthe Linux CIFS filesystem.</description></solvable>\\n<solvable type=\\"package\\" name=\\"cups\\" edition=\\"1.7.5-20.36.1\\" arch=\\"ppc64le\\" edition-old=\\"1.7.5-20.29.1\\" arch-old=\\"ppc64le\\" summary=\\"The Common UNIX Printing System\\">\\n<description>The Common UNIX Printing System (CUPS) is the\\nstandards-based, open source printing system.\\n\\nSee http://www.cups.org\\n\\nCUPS &gt;= 1.6 has major incompatible changes compared to CUPS 1.5.\\nAfter a version upgrade to CUPS &gt;= 1.6 printing in the network\\nwould no longer work as it did up to CUPS 1.5.\\n\\nFor details regarding incompatible changes in CUPS &gt;= 1.6 see\\nhttps://bugzilla.novell.com/show_bug.cgi?id=735404\\nand follow the links therein.</description></solvable>\\n<solvable type=\\"package\\" name=\\"cups-client\\" edition=\\"1.7.5-20.36.1\\" arch=\\"ppc64le\\" edition-old=\\"1.7.5-20.29.1\\" arch-old=\\"ppc64le\\" summary=\\"CUPS Client Programs\\">\\n<description>The Common UNIX Printing System (CUPS) is the\\nstandards-based, open source printing system.\\n\\nSee http://www.cups.org\\n\\nThis package contains all programs needed\\nfor running a CUPS client, not a server.\\n\\nCUPS &gt;= 1.6 has major incompatible changes compared to CUPS 1.5.\\nAfter a version upgrade to CUPS &gt;= 1.6 printing in the network\\nwould no longer work as it did up to CUPS 1.5.\\n\\nFor details regarding incompatible changes in CUPS &gt;= 1.6 see\\nhttps://bugzilla.novell.com/show_bug.cgi?id=735404\\nand follow the links therein.</description></solvable>\\n<solvable type=\\"package\\" name=\\"cups-libs\\" edition=\\"1.7.5-20.36.1\\" arch=\\"ppc64le\\" edition-old=\\"1.7.5-20.29.1\\" arch-old=\\"ppc64le\\" summary=\\"Libraries for CUPS\\">\\n<description>The Common UNIX Printing System (CUPS) is the\\nstandards-based, open source printing system.\\n\\nSee http://www.cups.org\\n\\nThis package contains libraries needed by CUPS\\nand other packages.\\n\\nCUPS &gt;= 1.6 has major incompatible changes compared to CUPS 1.5.\\nAfter a version upgrade to CUPS &gt;= 1.6 printing in the network\\nwould no longer work as it did up to CUPS 1.5.\\n\\nFor details regarding incompatible changes in CUPS &gt;= 1.6 see\\nhttps://bugzilla.novell.com/show_bug.cgi?id=735404\\nand follow the links therein.</description></solvable>\\n<solvable type=\\"package\\" name=\\"gdm\\" edition=\\"3.10.0.1-54.20.1\\" arch=\\"ppc64le\\" edition-old=\\"3.10.0.1-54.17.2\\" arch-old=\\"ppc64le\\" summary=\\"The GNOME Display Manager\\">\\n<description>The GNOME Display Manager is a system service that is responsible for\\nproviding graphical log-ins and managing local and remote displays.</description></solvable>\\n<solvable type=\\"package\\" name=\\"gdmflexiserver\\" edition=\\"3.10.0.1-54.20.1\\" arch=\\"noarch\\" edition-old=\\"3.10.0.1-54.17.2\\" arch-old=\\"noarch\\" summary=\\"Gdmflexiserver Compatibility Wrapper for Display Managers\\">\\n<description>The gdmflexiserver tool interacts with the display manager to\\nenable fast user switching. This package contains a wrapper that\\nselects the correct gdmflexiserver implementatoin, based on the\\nrunning display manager.</description></solvable>\\n<solvable type=\\"package\\" name=\\"gdm-lang\\" edition=\\"3.10.0.1-54.20.1\\" arch=\\"noarch\\" edition-old=\\"3.10.0.1-54.17.2\\" arch-old=\\"noarch\\" summary=\\"Languages for package gdm\\">\\n<description>Provides translations to the package gdm</description></solvable>\\n<solvable type=\\"package\\" name=\\"libcap2\\" edition=\\"2.26-14.6.1\\" arch=\\"ppc64le\\" edition-old=\\"2.22-13.1\\" arch-old=\\"ppc64le\\" summary=\\"Library for Capabilities (linux-privs) Support\\">\\n<description>Capabilities are a measure to limit the omnipotence of the superuser.\\nCurrently a program started by root or setuid root has the power to do\\nanything. Capabilities (Linux-Privs) provide a more fine-grained access\\ncontrol. Without kernel patches, you can use this library to drop\\ncapabilities within setuid binaries. If you use patches, this can be\\ndone automatically by the kernel.</description></solvable>\\n<solvable type=\\"package\\" name=\\"libdcerpc0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"Distributed Computing Environment Remote Procedure Calls library\\">\\n<description>DCE/RPC, short for &quot;Distributed Computing Environment / Remote\\nProcedure Calls&quot;, is the remote procedure call system developed for\\nthe Distributed Computing Environment (DCE). This system allows\\nprogrammers to write distributed software as if it were all working\\non the same computer, without having to worry about the underlying\\nnetwork code.</description></solvable>\\n<solvable type=\\"package\\" name=\\"libdcerpc-binding0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"Some samba library\\"/>\\n<solvable type=\\"package\\" name=\\"libgdm1\\" edition=\\"3.10.0.1-54.20.1\\" arch=\\"ppc64le\\" edition-old=\\"3.10.0.1-54.17.2\\" arch-old=\\"ppc64le\\" summary=\\"Client Library for Communicating with GDM Greeter Server\\">\\n<description>The GNOME Display Manager is a system service that is responsible for\\nproviding graphical log-ins and managing local and remote displays.</description></solvable>\\n<solvable type=\\"package\\" name=\\"libhogweed2\\" edition=\\"2.7.1-13.3.1\\" arch=\\"ppc64le\\" edition-old=\\"2.7.1-12.1\\" arch-old=\\"ppc64le\\" summary=\\"Cryptographic Library for Public Key Algorithms\\">\\n<description>Nettle is a cryptographic library that is designed to fit easily in more or\\nless any context: In crypto toolkits for object-oriented languages (C++,\\nPython, Pike, ...), in applications like LSH or GNUPG, or even in kernel space.\\n\\nThe libhogweed library contains public key algorithms to use with libnettle.</description></solvable>\\n<solvable type=\\"package\\" name=\\"libndr0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"Network Data Representation library\\">\\n<description>Network Data Representation (NDR) is an implementation of the\\npresentation layer in the OSI model.</description></solvable>\\n<solvable type=\\"package\\" name=\\"libndr-krb5pac0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"NDR marshallers for the KRB5 PAC formats\\"/>\\n<solvable type=\\"package\\" name=\\"libndr-nbt0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"NDR marshallers for NBT formats\\"/>\\n<solvable type=\\"package\\" name=\\"libndr-standard0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"NDR marshallers for the standard set of DCE/RPC interfaces\\"/>\\n<solvable type=\\"package\\" name=\\"libnetapi0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"Samba netapi Library\\">\\n<description>This package includes the netapi library.</description></solvable>\\n<solvable type=\\"package\\" name=\\"libnettle4\\" edition=\\"2.7.1-13.3.1\\" arch=\\"ppc64le\\" edition-old=\\"2.7.1-12.1\\" arch-old=\\"ppc64le\\" summary=\\"Cryptographic Library\\">\\n<description>Nettle is a cryptographic library that is designed to fit easily in more or\\nless any context: In crypto toolkits for object-oriented languages (C++,\\nPython, Pike, ...), in applications like LSH or GNUPG, or even in kernel space.</description></solvable>\\n<solvable type=\\"package\\" name=\\"libreadline6\\" edition=\\"6.3-83.26.4\\" arch=\\"ppc64le\\" edition-old=\\"6.3-83.23.1\\" arch-old=\\"ppc64le\\" summary=\\"The Readline Library\\">\\n<description>The readline library is used by the Bourne Again Shell (bash, the\\nstandard command interpreter) for easy editing of command lines.  This\\nincludes history and search functionality.</description></solvable>\\n<solvable type=\\"package\\" name=\\"libsamba-credentials0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"Samba credential management library\\"/>\\n<solvable type=\\"package\\" name=\\"libsamba-errors0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"Samba errors handling library\\"/>\\n<solvable type=\\"package\\" name=\\"libsamba-hostconfig0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"Host-wide Samba configuration library\\"/>\\n<solvable type=\\"package\\" name=\\"libsamba-passdb0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"Samba3 password database library\\"/>\\n<solvable type=\\"package\\" name=\\"libsamba-util0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"Samba utility function library\\"/>\\n<solvable type=\\"package\\" name=\\"libsamdb0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"Samba&apos;s SAM database library\\"/>\\n<solvable type=\\"package\\" name=\\"libsmbclient0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"Samba Client Library\\">\\n<description>This package includes the libsmbclient library.\\n\\nlibsmbclient is provided by the libsmbclient0 package.</description></solvable>\\n<solvable type=\\"package\\" name=\\"libsmbconf0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"Samba3 configuration library\\">\\n<description>libsmbconf is a library to read or, based on the backend, modify the\\nSamba configuration.</description></solvable>\\n<solvable type=\\"package\\" name=\\"libsmbldap0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"Samba LDAP protocol helper function library\\">\\n<description>libsmbldap contains LDAP protocol helper functions for Samba.</description></solvable>\\n<solvable type=\\"package\\" name=\\"libtevent-util0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"Samba tevent &lt;-&gt; system status code conversion utility library\\">\\n<description>The libtevent-util library contains functions to convert tevent error\\ncodes to platform-specific (errno, NTSTATUS, WERROR) ones.</description></solvable>\\n<solvable type=\\"package\\" name=\\"libwbclient0\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"Samba libwbclient Library\\">\\n<description>This package includes the wbclient library.</description></solvable>\\n<solvable type=\\"package\\" name=\\"MozillaFirefox\\" edition=\\"78.10.0-112.57.2\\" arch=\\"ppc64le\\" edition-old=\\"78.9.0-112.54.1\\" arch-old=\\"ppc64le\\" summary=\\"Mozilla Firefox Web Browser\\">\\n<description>Mozilla Firefox is a standalone web browser, designed for standards\\ncompliance and performance.  Its functionality can be enhanced via a\\nplethora of extensions.</description></solvable>\\n<solvable type=\\"package\\" name=\\"MozillaFirefox-translations-common\\" edition=\\"78.10.0-112.57.2\\" arch=\\"ppc64le\\" edition-old=\\"78.9.0-112.54.1\\" arch-old=\\"ppc64le\\" summary=\\"Common translations for Firefox\\">\\n<description>This package contains several common languages for the user interface\\nof Firefox.</description></solvable>\\n<solvable type=\\"package\\" name=\\"python-cffi\\" edition=\\"1.11.5-5.16.2\\" arch=\\"ppc64le\\" edition-old=\\"1.11.2-5.11.1\\" arch-old=\\"ppc64le\\" summary=\\"Foreign Function Interface for Python calling C code\\">\\n<description>Foreign Function Interface for Python calling C code. The aim of this project\\nis to provide a convenient and reliable way of calling C code from Python.</description></solvable>\\n<solvable type=\\"package\\" name=\\"python-cryptography\\" edition=\\"2.8-7.37.8\\" arch=\\"ppc64le\\" edition-old=\\"2.1.4-7.34.1\\" arch-old=\\"ppc64le\\" summary=\\"Python library which exposes cryptographic recipes and primitives\\">\\n<description>cryptography is a package designed to expose cryptographic\\nrecipes and primitives to Python developers.  Our goal is\\nfor it to be your &quot;cryptographic standard library&quot;. It\\nsupports Python 2.7, Python 3.4+, and PyPy-5.3+.\\n\\ncryptography includes both high level recipes, and low\\nlevel interfaces to common cryptographic algorithms such as\\nsymmetric ciphers, message digests and key derivation\\nfunctions.</description></solvable>\\n<solvable type=\\"package\\" name=\\"readline-doc\\" edition=\\"6.3-83.26.4\\" arch=\\"noarch\\" edition-old=\\"6.3-83.23.1\\" arch-old=\\"noarch\\" summary=\\"Documentation how to Use and Program with the Readline Library\\">\\n<description>This package contains the documentation for using the readline library\\nas well as programming with the interface of the readline library.</description></solvable>\\n<solvable type=\\"package\\" name=\\"samba\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"A SMB/CIFS File, Print, and Authentication Server\\">\\n<description>Samba is a suite of programs that allows SMB/CIFS clients to use the\\nUnix file space, printers, and authentication subsystem.\\n\\nThe package named samba contains all programs that are needed to act as\\na server.  The binaries expect the configuration file to be found in\\n/etc/samba/smb.conf\\n\\nFor a more detailed description of Samba, check the samba-doc package\\nor the Samba.org Web page at https://www.Samba.org/\\n\\nPlease check https://en.openSUSE.org/Samba for general information on\\nSamba as part of SUSE Linux Enterprise or openSUSE products, links to\\nbinary packages of the most current Samba version, and a bug reporting\\nhow to.</description></solvable>\\n<solvable type=\\"package\\" name=\\"samba-client\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"Samba Client Utilities\\">\\n<description>Samba is a suite of programs that allows SMB/CIFS clients to use the\\nUnix file space, printers, and authentication subsystem.\\n\\nThe package named samba-client contains all programs that are needed to\\nact as a Samba client. The binaries expect the configuration file to\\nbe found in /etc/samba/smb.conf\\n\\nFor a more detailed description of Samba, check the samba-doc package\\nor the Samba.org Web page at https://www.Samba.org/\\n\\nPlease check https://en.openSUSE.org/Samba for general information on\\nSamba as part of SUSE Linux Enterprise or openSUSE products, links to\\nbinary packages of the most current Samba version, and a bug reporting\\nhow to.</description></solvable>\\n<solvable type=\\"package\\" name=\\"samba-libs\\" edition=\\"4.6.16+git.282.cfafed5922a-3.61.1\\" arch=\\"ppc64le\\" edition-old=\\"4.6.16+git.248.c833312e640-3.58.1\\" arch-old=\\"ppc64le\\" summary=\\"Samba libraries\\">\\n<description>The samba-libs package contains the libraries needed by programs that\\nlink against the SMB, RPC and other protocols provided by the Samba suite.</description></solvable>\\n<solvable type=\\"package\\" name=\\"supportutils\\" edition=\\"3.0.9-95.45.1\\" arch=\\"noarch\\" edition-old=\\"3.0.8-95.41.1\\" arch-old=\\"noarch\\" summary=\\"Support Troubleshooting Tools\\">\\n<description>A package containing troubleshooting tools. This package contains\\nthe following: supportconfig, chkbin, getappcore, analyzevmcore</description></solvable>\\n<solvable type=\\"package\\" name=\\"typelib-1_0-Gdm-1_0\\" edition=\\"3.10.0.1-54.20.1\\" arch=\\"ppc64le\\" edition-old=\\"3.10.0.1-54.17.2\\" arch-old=\\"ppc64le\\" summary=\\"Client Library for Communicating with GDM Greeter Server -- Introspection bindings\\">\\n<description>The GNOME Display Manager is a system service that is responsible for\\nproviding graphical log-ins and managing local and remote displays.\\n\\nThis package provides the GObject Introspection bindings for\\ncommunicating with the GDM greeter server.</description></solvable>\\n</to-upgrade>\\n<to-install>\\n<solvable type=\\"patch\\" name=\\"CL-SUSE-SLE-SAP-12-SP3-2021-1325\\" edition=\\"1\\" arch=\\"noarch\\" summary=\\"important: Security update for MozillaFirefox\\">\\n<description>This update for MozillaFirefox fixes the following issues:\\n\\n- Firefox was updated to 78.10.0 ESR (bsc#1184960)\\n  * CVE-2021-23994: Out of bound write due to lazy initialization\\n  * CVE-2021-23995: Use-after-free in Responsive Design Mode\\n  * CVE-2021-23998: Secure Lock icon could have been spoofed\\n  * CVE-2021-23961: More internal network hosts could have been probed by a malicious webpage\\n  * CVE-2021-23999: Blob URLs may have been granted additional privileges\\n  * CVE-2021-24002: Arbitrary FTP command execution on FTP servers using an encoded URL\\n  * CVE-2021-29945: Incorrect size computation in WebAssembly JIT could lead to null-reads\\n  * CVE-2021-29946: Port blocking could be bypassed\\n</description></solvable>\\n<solvable type=\\"patch\\" name=\\"CL-SUSE-SLE-SAP-12-SP3-2021-1336\\" edition=\\"1\\" arch=\\"noarch\\" summary=\\"Recommended update for libcap\\">\\n<description>This update for libcap fixes the following issues:\\n\\n- Add explicit dependency on &apos;libcap2&apos; with version to &apos;libcap-progs&apos;. (bsc#1184690, bsc#1184434)\\n</description></solvable>\\n<solvable type=\\"patch\\" name=\\"CL-SUSE-SLE-SAP-12-SP3-2021-1399\\" edition=\\"1\\" arch=\\"noarch\\" summary=\\"important: Security update for libnettle\\">\\n<description>This update for libnettle fixes the following issues:\\n\\n- CVE-2021-20305: Fixed the multiply function which was being called with out-of-range scalars (bsc#1184401, bsc#1183835).\\n</description></solvable>\\n<solvable type=\\"patch\\" name=\\"CL-SUSE-SLE-SAP-12-SP3-2021-1401\\" edition=\\"1\\" arch=\\"noarch\\" summary=\\"important: Security update for gdm\\">\\n<description>This update for gdm fixes the following issues:\\n\\n-  Avoid the signal SIGTRAP when gdm exits (bsc#1184456).\\n</description></solvable>\\n<solvable type=\\"patch\\" name=\\"CL-SUSE-SLE-SAP-12-SP3-2021-1453\\" edition=\\"1\\" arch=\\"noarch\\" summary=\\"important: Security update for cups\\">\\n<description>This update for cups fixes the following issues:\\n\\n- CVE-2021-25317: ownership of /var/log/cups could allow privilege escalation from lp user to root via symlink attacks (bsc#1184161)\\n</description></solvable>\\n<solvable type=\\"patch\\" name=\\"CL-SUSE-SLE-SAP-12-SP3-2021-1457\\" edition=\\"1\\" arch=\\"noarch\\" summary=\\"Recommended update for cifs-utils\\">\\n<description>This update for cifs-utils fixes the following issues:\\n\\n- Fixed a bug where it was no longer possible to mount CIFS filesystem after the\\n  last maintenance update (bsc#1184815)\\n</description></solvable>\\n<solvable type=\\"patch\\" name=\\"CL-SUSE-SLE-SAP-12-SP3-2021-1469\\" edition=\\"1\\" arch=\\"noarch\\" summary=\\"important: Security update for bind\\">\\n<description>This update for bind fixes the following issues:\\n\\n- CVE-2021-25214: Fixed a broken inbound incremental zone update (IXFR) which could have caused named to terminate unexpectedly (bsc#1185345).\\n- CVE-2021-25215: Fixed an assertion check which could have failed while answering queries for DNAME records that required the DNAME to be processed to resolve itself (bsc#1185345).\\n- CVE-2021-25216: Fixed an issue where policy negotiation can be targeted by a buffer overflow attack (bsc#1185345).\\n- MD5 warning message using host, dig, nslookup (bind-utils) with FIPS enabled (bsc#1181495).\\n</description></solvable>\\n<solvable type=\\"patch\\" name=\\"CL-SUSE-SLE-SAP-12-SP3-2021-1492\\" edition=\\"1\\" arch=\\"noarch\\" summary=\\"important: Security update for samba\\">\\n<description>This update for samba fixes the following issues:\\n\\n- CVE-2021-20254: Fixed a buffer overrun in sids_to_unixids() (bsc#1184677).\\n- Avoid free&apos;ing our own pointer in memcache when memcache_trim attempts to reduce cache size (bsc#1179156).\\n- Adjust smbcacls &apos;--propagate-inheritance&apos; feature to align with upstream (bsc#1178469).\\n</description></solvable>\\n<solvable type=\\"patch\\" name=\\"CL-SUSE-SLE-SAP-12-SP3-2021-1541\\" edition=\\"1\\" arch=\\"noarch\\" summary=\\"Recommended update for bash\\">\\n<description>This update for bash fixes the following issues:\\n\\n- Fixed a bug where the &apos;tailf&apos; command destroyed the terminal/console settings (bsc1177369)\\n</description></solvable>\\n<solvable type=\\"patch\\" name=\\"CL-SUSE-SLE-SAP-12-SP3-2021-1548\\" edition=\\"1\\" arch=\\"noarch\\" summary=\\"Recommended update for python-cryptography, python-cryptography-vectors, python-cffi, python-oslo.service\\">\\n<description>This update for python-cryptography, python-cryptography-vectors, python-cffi, python-oslo.service fixes the following issues:\\n\\n- Update in SLE-12 to allow refreshing the Azure SDK. (bsc#1176784, jsc#ECO-3105, jsc#PM-2352)\\n  </description></solvable>\\n<solvable type=\\"patch\\" name=\\"CL-SUSE-SLE-SAP-12-SP3-2021-1551\\" edition=\\"1\\" arch=\\"noarch\\" summary=\\"Recommended update for supportutils\\">\\n<description>This update for supportutils fixes the following issues:\\n\\n- Performance improvements on large systems (bsc#1127734)\\n- Added a check for package signatures in rpm.txt (bsc#1021918)\\n- Performance improvements when the &apos;find&apos; command is being used (bsc#1184911)\\n- Fixed a bug where the updates.txt file did not list products in XML format anymore (bsc#1181351)\\n- Fixed a bug where listing files under /sys fails when their names contain a backslash (bsc#1089870)\\n- Added drbd information and configuration details to drbd.txt (bsc#1063765)\\n- Added list-timers and list-jobs to systemd.txt (bsc#1169348)\\n- Fixed a bug where supportconfig only searched for nfs, but not for nfs4 in /etc/fstab (bsc#1184828)\\n- Added support for capturing rotated logs with different compression methods (bsc#1179188)\\n- Removed deprecated mii-tool (bsc#1043601)\\n- Added -u for HTTPS and -a for FTPES uploads to SUSE FTP servers (bsc#1051419)\\n</description></solvable>\\n</to-install>\\n<to-remove>\\n<solvable type=\\"application\\" name=\\"Firefox Web Browser\\" edition=\\"\\" arch=\\"noarch\\" summary=\\"Mozilla Firefox Web Browser\\">\\n<description>Mozilla Firefox is a standalone web browser, designed for privacy, security, standards\\ncompliance and performance. Its functionality can be enhanced via a plethora of extensions.\\n\\nFirefox makes your daily web browsing fun and easy with a number of features, including:\\n\\n  - Tabbed browsing\\n  - Private browsing including do-not-track enabled by default\\n  - Advanced phishing and malware protection\\n  - Spell checking\\n  - Incremental find within pages\\n  - Live bookmarking and Smart Bookmarks\\n  - Download manager\\n  - Location-aware browsing\\n  - Compliant with modern web standards\\n  - Modern web development tools\\n  - Available in a wide number of locales\\n  - A thriving ecosystem of themes and extensions at https://addons.mozilla.org</description></solvable>\\n</to-remove>\\n</install-summary>\\n<prompt id=\\"0\\">\\n<text>Continue?</text>\\n<option default=\\"1\\" value=\\"y\\" desc=\\"Yes, accept the summary and proceed with installation/removal of packages.\\"/>\\n<option value=\\"n\\" desc=\\"No, cancel the operation.\\"/>\\n<option value=\\"v\\" desc=\\"Toggle display of package versions.\\"/>\\n<option value=\\"a\\" desc=\\"Toggle display of package architectures.\\"/>\\n<option value=\\"r\\" desc=\\"Toggle display of repositories from which the packages will be installed.\\"/>\\n<option value=\\"m\\" desc=\\"Toggle display of package vendor names.\\"/>\\n<option value=\\"d\\" desc=\\"Toggle between showing all details and as few details as possible.\\"/>\\n<option value=\\"g\\" desc=\\"View the summary in pager.\\"/>\\n</prompt>\\n</stream>\\n"
+}
+
+TASK [suse_patching : Nothing to do here, all packages are up to date] *********
+skipping: [XXXX.abc.com]
+skipping: [YYYY.abc.com]
+
+TASK [suse_patching : patches installed successfully] **************************
+ok: [XXXX.abc.com]
+ok: [YYYY.abc.com]
+
+TASK [suse_patching : failure - patches not installed] *************************
+skipping: [XXXX.abc.com]
+skipping: [YYYY.abc.com]
+
+TASK [suse_patching : run yum bugfix update on host] ***************************
+skipping: [XXXX.abc.com]
+skipping: [YYYY.abc.com]
+
+TASK [suse_patching : run yum security update on host] *************************
+skipping: [XXXX.abc.com]
+skipping: [YYYY.abc.com]
+
+TASK [suse_patching : install single/multiple pacakge(s)] **********************
+skipping: [XXXX.abc.com]
+skipping: [YYYY.abc.com]
+
+TASK [suse_patching : debug] ***************************************************
+ok: [XXXX.abc.com] => {
+    "exec_message": "  Pre check validations have been successful. System diagnostic data captured in below file: /var/log/YYYY_Pre_Patch_config_12062021.txt Backup configuration to the jumphost is successful Please refer below file: /tmp/YYYY_linux_patching_20210612.zip ==============Patching started================= Host name and version details: SLES_SAP 12.3    patch_type: update_all ======> Pacthes installed successfully <====== "
+}
+ok: [YYYY.abc.com] => {
+    "exec_message": "  Pre check validations have been successful. System diagnostic data captured in below file: /var/log/XXXX_Pre_Patch_config_12062021.txt Backup configuration to the jumphost is successful Please refer below file: /tmp/XXXX_linux_patching_20210612.zip ==============Patching started================= Host name and version details: SLES_SAP 12.3    patch_type: update_all ======> Pacthes installed successfully <====== "
+}
+
+TASK [post_patching_validation : Get OS flavor] ********************************
+ok: [XXXX.abc.com]
+ok: [YYYY.abc.com]
+
+TASK [post_patching_validation : Run autoremove] *******************************
+skipping: [XXXX.abc.com]
+skipping: [YYYY.abc.com]
+
+TASK [post_patching_validation : Removed unused dependency packages] ***********
+skipping: [XXXX.abc.com]
+skipping: [YYYY.abc.com]
+
+TASK [post_patching_validation : Reboot the server] ****************************
+skipping: [XXXX.abc.com]
+skipping: [YYYY.abc.com]
+
+TASK [post_patching_validation : Reboot successful] ****************************
+skipping: [XXXX.abc.com]
+skipping: [YYYY.abc.com]
+
+TASK [post_patching_validation : Define output file name] **********************
+ok: [XXXX.abc.com]
+ok: [YYYY.abc.com]
+
+TASK [post_patching_validation : Capture the system diagnostic data and post it to a local file] ***
+ok: [XXXX.abc.com]
+ok: [YYYY.abc.com]
+
+TASK [post_patching_validation : Capture the system diagnostic data for ubuntu] ***
+skipping: [XXXX.abc.com]
+skipping: [YYYY.abc.com]
+
+TASK [post_patching_validation : Fetch pre patching file] **********************
+ok: [XXXX.abc.com]
+ok: [YYYY.abc.com]
+
+TASK [post_patching_validation : Compare pre and post patching data] ***********
+ok: [XXXX.abc.com]
+ok: [YYYY.abc.com]
+
+TASK [post_patching_validation : Difference found between pre and post patching configuration] ***
+ok: [XXXX.abc.com]
+ok: [YYYY.abc.com]
+
+TASK [debug] *******************************************************************
+ok: [XXXX.abc.com] => {
+    "exec_message": "  Pre check validations have been successful. System diagnostic data captured in below file: /var/log/YYYY_Pre_Patch_config_12062021.txt Backup configuration to the jumphost is successful Please refer below file: /tmp/YYYY_linux_patching_20210612.zip ==============Patching started================= Host name and version details: SLES_SAP 12.3    patch_type: update_all ======> Pacthes installed successfully <======  Refer below files to get the details of pre and post patching configuration: /var/log/YYYY_Post_Patch_config_12062021.txt /var/log/YYYY_Pre_Patch_config_12062021.txt"
+}
+ok: [YYYY.abc.com] => {
+    "exec_message": "  Pre check validations have been successful. System diagnostic data captured in below file: /var/log/XXXX_Pre_Patch_config_12062021.txt Backup configuration to the jumphost is successful Please refer below file: /tmp/XXXX_linux_patching_20210612.zip ==============Patching started================= Host name and version details: SLES_SAP 12.3    patch_type: update_all ======> Pacthes installed successfully <======  Refer below files to get the details of pre and post patching configuration: /var/log/XXXX_Post_Patch_config_12062021.txt /var/log/XXXX_Pre_Patch_config_12062021.txt"
+}
+
+PLAY RECAP *********************************************************************
+XXXX.abc.com : ok=47   changed=6    unreachable=0    failed=0    skipped=35   rescued=0    ignored=0   
+YYYY.abc.com : ok=47   changed=6    unreachable=0    failed=0    skipped=35   rescued=0    ignored=0   
+localhost                  : ok=7    changed=1    unreachable=0    failed=0    skipped=1    rescued=0    ignored=0   
+

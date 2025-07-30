@@ -1,0 +1,188 @@
+---
+- name: Mount remote NFS
+  block:
+
+    - name: Make sure mount point exists  # noqa risky-file-permissions
+      ansible.builtin.file:
+        path: "{{ nfs_mountpoint }}"
+        state: directory
+
+    - name: Mount remote   # noqa command-instead-of-module
+      ansible.builtin.command:
+        mount -t nfs -o vers=4 {{ nfs_path }} {{ nfs_mountpoint }}
+      changed_when: true
+
+    - name: Update exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Remote NFS volume has been mounted successfully.\n\n"
+
+  rescue:
+
+    - name:
+        Return code generation in case of
+        NFS volume mount failure
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5030
+        rc_message:
+          "Mounting remote NFS volume has failed.
+          Further investigation is required by the developer."
+
+    - name: Set exec_message and continue_execution flag
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Mounting remote NFS volume has failed.\n\n
+          Aborting the patching process.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Mounting remote NFS volume has failed"
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Pre patching steps
+  when: continue_execution
+  block:
+
+    - name: Install all updates in repository folder
+      ansible.builtin.shell: |
+        cd {{ package_download_location }};
+        yum update {{ pre_patch_list }} -y;
+      changed_when: true
+
+  rescue:
+
+    - name:
+        Return code generation in case of failure
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5058
+        rc_message:
+          "Applying patches as pre patching step has failed.
+          Further investigation is required by the developer."
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Applying patches as pre patching step has failed.\n\n
+          Aborting the patching process.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Applying patches as pre patching step has failed"
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Unmount NFS volume
+  when: continue_execution
+  block:
+
+    - name: Unmount NFS volume
+      ansible.posix.mount:
+        path: "{{ nfs_mountpoint }}"
+        state: unmounted
+
+    - name: Update exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Remote NFS volume has been unmounted successfully.\n\n"
+
+  rescue:
+
+    - name: Unmount NFS volume in force mode
+      ansible.builtin.command: umount -f {{ nfs_mountpoint }}
+      register: umount_out
+      ignore_errors: true
+      changed_when: true
+
+    - name: Update exec_message
+      when: umount_out is not failed
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Remote NFS volume has been unmounted successfully.\n\n"
+
+    - name: Umount command failed
+      when: umount_out is failed
+      block:
+
+        - name:
+            Return code generation in case of
+            NFS volume unmount failure
+          ansible.builtin.include_role:
+            name: returncode
+          vars:
+            rc_support: "developer"
+            rc_group: "component_playbook"
+            rc_number: 5034
+            rc_message:
+              "Unmounting remote NFS volume has failed.
+              Further investigation is required by the developer."
+
+        - name: Set exec_message
+          ansible.builtin.set_fact:
+            exec_message:
+              "{{ exec_message }}
+              Unmounting remote NFS volume has failed.\n\n"
+
+        - name: Send communication
+          ansible.builtin.include_tasks: send_notification.yml
+
+        - name: Remove lock file
+          ansible.builtin.file:
+            path:
+              /etc/ansible/facts.d{{
+              '' if lock_file_dir.changed else '/unix_patching.fact' }}
+            state: absent
+
+        - name: End the job for the host {{ inventory_hostname }}
+          ansible.builtin.fail:
+            msg: "Unmounting remote NFS volume has failed"
+          when:
+            - fail_on_error | bool
+            - not teams_notification
+
+        - name: Set continue_execution flag
+          ansible.builtin.set_fact:
+            continue_execution: false

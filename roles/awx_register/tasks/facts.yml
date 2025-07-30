@@ -1,0 +1,70 @@
+---
+# ========== OBTENER FACTS DEL SISTEMA ==========
+- name: 🧠 Recolectar facts del sistema si no están presentes
+  ansible.builtin.setup:
+  when: ansible_os_family is not defined
+
+- name: 📋 Mostrar información del sistema detectado
+  ansible.builtin.debug:
+    msg:
+      - "🖥️  Sistema: {{ ansible_os_family }}"
+      - "📌 Distribución: {{ ansible_distribution | default('N/A') }} {{ ansible_distribution_version | default('') }}"
+      - "🔍 Recolectando hostname e IP..."
+
+# ========== OBTENER HOSTNAME ==========
+- name: 🏷️  Obtener hostname del sistema
+  ansible.builtin.set_fact:
+    awx_hostname: "{{ ansible_hostname }}"
+
+- name: ✅ Validar hostname obtenido
+  ansible.builtin.assert:
+    that:
+      - awx_hostname is defined
+      - awx_hostname != ""
+      - awx_hostname | length > 0
+    fail_msg: "❌ No se pudo obtener el hostname del sistema"
+
+# ========== OBTENER IP ADDRESS ==========
+- name: 🌐 Obtener IP address principal (Linux)
+  ansible.builtin.set_fact:
+    awx_ip_address: "{{ ansible_default_ipv4.address }}"
+  when: ansible_os_family != 'Windows'
+
+- name: 🌐 Obtener IP address principal (Windows)
+  ansible.builtin.set_fact:
+    awx_ip_address: "{{ item | trim }}"
+  loop: "{{ ansible_ip_addresses }}"
+  when: 
+    - ansible_os_family == 'Windows'
+    - item is match('^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$')
+    - not item.startswith('127.')
+    - not item.startswith('169.254.')
+    - awx_ip_address is not defined
+
+- name: ✅ Validar IP address obtenida
+  ansible.builtin.assert:
+    that:
+      - awx_ip_address is defined
+      - awx_ip_address != ""
+      - awx_ip_address is match("^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$")
+    fail_msg: "❌ IP address no válida o no encontrada: {{ awx_ip_address | default('NO DEFINIDA') }}"
+
+# ========== OBTENER INFORMACIÓN ADICIONAL DEL SISTEMA ==========
+- name: 📊 Obtener información adicional del sistema
+  ansible.builtin.set_fact:
+    awx_system_info:
+      os_family: "{{ ansible_os_family }}"
+      distribution: "{{ ansible_distribution | default('Unknown') }}"
+      distribution_version: "{{ ansible_distribution_version | default('Unknown') }}"
+      kernel: "{{ ansible_kernel | default('Unknown') }}"
+      architecture: "{{ ansible_architecture | default('Unknown') }}"
+
+# ========== MOSTRAR FACTS RECOLECTADOS ==========
+- name: 📋 Mostrar facts recolectados para AWX
+  ansible.builtin.debug:
+    msg:
+      - "🏷️  Hostname: {{ awx_hostname }}"
+      - "🌐 IP Address: {{ awx_ip_address }}"
+      - "🖥️  OS Family: {{ awx_system_info.os_family }}"
+      - "📌 Distribution: {{ awx_system_info.distribution }} {{ awx_system_info.distribution_version }}"
+      - "⚙️  Architecture: {{ awx_system_info.architecture }}"

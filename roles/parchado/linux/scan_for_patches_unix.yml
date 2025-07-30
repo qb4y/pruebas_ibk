@@ -1,0 +1,225 @@
+---
+- name: Prepare execution-generic environment
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    task_required: true
+  tasks:
+    - name: Show version in job output
+      ansible.builtin.debug:
+        msg:
+          - "Unix Scanner Branch/Tag: {{ tower_project_scm_branch | d('N/A') }}"
+          - "Unix Scanner Revision: {{ tower_project_revision | d('N/A') }}"
+
+    - name: Set link to documentation and name of this tool
+      ansible.builtin.include_role:
+        name: returncode
+        tasks_from: set_job_properties
+      vars:
+        asset_name: "Scan for Patches Unix"
+        documentation:
+          default:
+            "https://github.kyndryl.net/Innovate/project_vpm_unix"
+
+    - name: Check the mandatory inventory variables
+      block:
+        - name: Check Inventory variables
+          ansible.builtin.assert:
+            that:
+              - gsma_code is defined and gsma_code | length > 0
+              - bac_id is defined and bac_id | length > 0
+              - lookup('env', 'TOWER_PASSWORD') is defined or
+                lookup('env', 'TOWER_OAUTH_TOKEN') is defined
+              - lookup('env', 'TOWER_PASSWORD') | length > 0 or
+                lookup('env', 'TOWER_OAUTH_TOKEN') | length > 0
+              - lookup('env', 'LSSEC_GIT_TOKEN') is defined and
+                lookup('env', 'LSSEC_GIT_TOKEN') | length > 0
+      rescue:
+        - name: Inventory variables are missing to run the playbook
+          ansible.builtin.set_fact:
+            exec_error: true
+            task_required: false
+            return_code_support: "account"
+            return_code_group: "framework_playbook"
+            return_code_number: 3024
+            return_code_message: |
+              "Required variables are missing or wrong: {% if not bac_id |
+              d(false) %}Inventory variable bac_id is missing
+              {% endif %} {% if not gsma_code |
+              d(false) %}Inventory variable gsma_code is missing
+              {% endif %} {% if not lookup('env', 'TOWER_PASSWORD') |
+              d(false) and not lookup('env', 'TOWER_OAUTH_TOKEN') |
+              d(false) %}TOWER_PASSWORD or TOWER_OAUTH_TOKEN is missing
+              {% endif %} {% if not lookup('env', 'LSSEC_GIT_TOKEN') |
+              d(false) %}LSSEC_GIT_TOKEN is missing{% endif %} (warning)"
+
+    - name: Exit in the case of any error
+      when: not (task_required | d(false) | bool)
+      block:
+        - name: RC in case of failure
+          ansible.builtin.include_role:
+            name: returncode
+          vars:
+            rc_support: "{{ return_code_support }}"
+            rc_group: "{{ return_code_group }}"
+            rc_number: "{{ return_code_number }}"
+            rc_message: "{{ return_code_message }}"
+
+        - name: Terminate the play as the pre-requisites is not met
+          ansible.builtin.meta:
+            end_play
+
+    - name: Prepare for upload to SFS
+      tags:
+        - sfs
+      block:
+        - name: Prepare for upload to SFS
+          ansible.builtin.include_role:
+            name: sfs_upload
+          vars:
+            sfs_upload_stage: "prepare"
+            output_dir: "/tmp/gts-ansible/patchscan"
+      rescue:
+        - name: Call returncode module
+          ansible.builtin.include_role:
+            name: returncode
+          vars:
+            rc_support: "account"
+            rc_group: "misconfiguration"
+            rc_number: 3020
+            rc_message: >-
+              Can not prepare SFS uploading. The reason can be wrong
+              SFS url, or wrong credentials.
+              {{ ansible_failed_result.stderr_lines | default('unknown') }}.
+
+        - name: Set control variable to skip further tasks
+          ansible.builtin.set_fact:
+            task_required: false
+
+    - name: "Add 'task_required' to localhost to share variable within plays"
+      delegate_to: localhost
+      ansible.builtin.set_fact:
+        task_required: "{{ task_required }}"
+
+- name: Run ICV role
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: End the task as the pre-requisites is not met
+      ansible.builtin.meta:
+        end_play
+      when: not (hostvars.localhost.task_required | d(true) | bool)
+
+    - name: Run ICV role
+      ansible.builtin.include_role:
+        name: ansible_role_input_control_validate
+      vars:
+        icv_variable_descriptor: "project_vpm_unix.json"
+
+    - name: Add 'task_required' to localhost
+      delegate_to: localhost
+      ansible.builtin.set_fact:
+        task_required: false
+      when:
+        - not (returncode is defined)
+        - (returncode is defined and returncode != "0")
+
+- name: Run patch scanning on endpoints and copy all results to Tower
+  hosts: all
+  gather_facts: false
+  vars:
+    task_required: "{{ hostvars['localhost']['task_required'] }}"
+  tasks:
+    - name: End host if ICV detected an issue
+      when: not (task_required | d(true) | bool)
+      ansible.builtin.meta: end_host
+
+    - name: Run the patch scanning role
+      when: returncode == "0"
+      block:
+        - name: Gather basic server facts
+          ansible.builtin.setup:
+            gather_subset:
+              - '!all'
+              - '!min'
+              - 'system'
+              - 'distribution'
+              - 'architecture'
+              - 'date_time'
+            gather_timeout: "{{ gather_facts_timeout | d(120) }}"
+
+        - name: Apply patch scanning role to endpoint
+          ansible.builtin.include_role:
+            name: scan_for_patches
+          vars:
+            dir: "{{ hostvars['localhost']['base_dir'] }}"
+          when:
+            - task_required
+
+        - name: Add 'task_required' to localhost
+          delegate_to: localhost
+          ansible.builtin.set_fact:
+            task_required: "{{ task_required }}"
+
+      rescue:
+        - name: Call returncode module - Report failure
+          ansible.builtin.include_role:
+            name: returncode
+          vars:
+            rc_support: "undetermined"
+            rc_group: "service_issue"
+            rc_number: 3026
+            rc_message: >-
+              Gathering facts failed on the endpoint.
+              Please verify connectivity and endpoint status.
+              If the issue persists, open an incident with execution details.
+
+    - name: Call returncode module - Report successfull execution
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_success: true
+      when:
+        - task_required
+
+- name: Report overall execution outcome and run extra processing of scan result
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    task_required: "{{ hostvars['localhost']['task_required'] }}"
+  tasks:
+    - name: End the task as the pre-requisites is not met
+      ansible.builtin.meta:
+        end_play
+      when: not (task_required | d(true) | bool)
+
+    - name: Find files in SFS directory
+      ansible.builtin.find:
+        paths: "{{ hostvars['localhost']['base_dir'] }}"
+        patterns: "{{ output_file_extension | default('*.json') }}"
+      register: upload_files
+
+    - name: Upload to SFS
+      when:
+        - upload_files.matched > 0
+      block:
+        - name: SFS_upload
+          ansible.builtin.include_role:
+            name: sfs_upload
+          vars:
+            sfs_upload_stage: "upload"
+            output_file_name: "job{{ tower_job_id }}_time{{ timestamp }}.zip"
+      rescue:
+        - name: Call returncode module
+          ansible.builtin.include_role:
+            name: returncode
+          vars:
+            rc_support: "undetermined"
+            rc_group: "service_issue"
+            rc_number: 3021
+            rc_message: >-
+              Can not upload to SFS. It is probably SFS service error.
+              Please open an issue with the execution details.
+              {{ ansible_failed_result.stderr_lines | default('unknown') }}.

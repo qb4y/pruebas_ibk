@@ -1,0 +1,26 @@
+---
+# Ansible Controller deployment config file for unix patching
+code: unix_patching
+
+playbooks:
+  - name: linux_patching
+    playbook: playbooks/linux_patching.yml
+    title: "Linux Patching"
+    description:
+      "This will trigger pre validation, patching and post validation
+      for all supported linux OS flavours."
+
+  - name: linux_pre_patching_validation
+    playbook: playbooks/pre_patching_validation.yml
+    title: "Linux Pre Patching Validation"
+    description: "Pre validation for all supported linux OS flavours."
+
+  - name: linux_post_patching_validation
+    playbook: playbooks/post_patching_validation.yml
+    title: "Linux Post Patching Validation"
+    description: "Post patching steps for all supported linux OS flavours."
+
+  - name: aix_patching
+    playbook: playbooks/aix_patching.yml
+    title: "AIX Patching"
+    description: "This will trigger patching steps for AIX servers."

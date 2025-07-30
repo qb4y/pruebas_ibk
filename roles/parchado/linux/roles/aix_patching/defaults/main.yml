@@ -1,0 +1,27 @@
+---
+
+patching_scenario: 'alt_disk'
+patching_filesets_location: ''
+efix_filesets_location: ''
+remove_efix_list: ''
+free_disk: ''
+reboot_required: false
+run_shutdown_script: false
+nfs_path: ''
+nfs_mountpoint: ''
+fail_on_error: true
+use_old_rootvg: true
+fail_if_no_old_rootvg: false
+rootvg_backup: 'alt_disk'
+send_email: false
+recipients: []
+smtp_host_ip: ''
+smtp_port: 25
+teams_notification: false
+channel_webhook_url: ''
+unmount_nfs_after_patching: true
+mount_with_soft_option: false
+root_vg_name: 'rootvg'
+free_disk_same_adaptor: false
+restart_ssh: false
+remove_locking_efixes: true

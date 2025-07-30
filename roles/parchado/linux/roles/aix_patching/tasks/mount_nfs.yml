@@ -1,0 +1,63 @@
+---
+
+- name: Mount NFS volume
+  block:
+
+    - name: Make sure mount point exists  # noqa risky-file-permissions
+      ansible.builtin.file:
+        path: "{{ nfs_mountpoint }}"
+        state: directory
+
+    - name: Mount NFS volume  # noqa command-instead-of-module
+      ansible.builtin.command: |
+        mount {{ '-o soft' if mount_with_soft_option else '' }}
+        {{ nfs_path }} {{ nfs_mountpoint }}
+      changed_when: true
+
+    - name: Update exec_message
+      ansible.builtin.set_fact:
+        mount_success: true
+        exec_message:
+          "{{ exec_message }}
+          Remote NFS volume has been mounted successfully.\n\n"
+
+  rescue:
+
+    - name:
+        Return code generation in case of
+        NFS volume mount failure
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5030
+        rc_message:
+          "Mounting remote NFS volume has failed.
+          Further investigation is required by the developer."
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Mounting remote NFS volume has failed.\n\n
+          Aborting the patching process.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "NFS volume mount failed"
+      when: fail_on_error | bool
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false

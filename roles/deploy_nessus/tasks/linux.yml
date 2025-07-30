@@ -1,0 +1,101 @@
+- name: 📥 Extraer nombre del archivo desde la URL
+  ansible.builtin.set_fact:
+    nessus_filename: "{{ nessus_installer_url | urlsplit('path') | basename }}"
+
+- name: 🧾 Mostrar nombre extraído
+  ansible.builtin.debug:
+    msg: "📦 Nombre del archivo: {{ nessus_filename }}"
+
+- name: Descargar Nessus desde URL oficial de Tenable
+  ansible.builtin.get_url:
+    url: "{{ nessus_installer_url }}"
+    dest: "/tmp/{{ nessus_filename }}"
+    mode: '0644'
+
+- name: Instalar Nessus con shell (fallback a dnf)
+  ansible.builtin.shell: "dnf install -y /tmp/{{ nessus_filename }}"
+  args:
+    executable: /bin/bash
+  register: install_nessus
+  changed_when: "'Nothing to do' not in install_nessus.stdout"
+  failed_when: install_nessus.rc != 0 and install_nessus.rc != 1
+  ignore_errors: true
+
+- name: Establecer nombre del servicio Nessus Agent
+  ansible.builtin.set_fact:
+    nessus_service_name: "nessusagent"
+
+- name: Habilitar y arrancar el servicio Nessus
+  ansible.builtin.systemd:
+    name: "{{ nessus_service_name }}"
+    enabled: true
+    state: started
+
+- name: Esperar unos segundos antes de continuar
+  ansible.builtin.pause:
+    seconds: 5
+
+- name: Asegurar que el servicio esté activo
+  ansible.builtin.systemd:
+    name: nessusagent
+    state: started
+    enabled: true
+
+- name: Verificar si el servidor de gestión Nessus está disponible
+  ansible.builtin.wait_for:
+    host: "{{ nessus_manager_host }}"
+    port: "{{ nessus_manager_port }}"
+    connect_timeout: 3
+    timeout: 5
+    state: started
+  register: nessus_manager_check
+  ignore_errors: true
+  when: not nessus_fake_environment | default(false)
+
+- name: Enlazar agente Nessus con el servidor
+  ansible.builtin.command: >
+    /opt/nessus_agent/sbin/nessuscli agent link
+    --key={{ nessus_activation_key }}
+    --host={{ nessus_manager_host }}
+    --port={{ nessus_manager_port }}
+    --groups={{ nessus_agent_groups }}
+  args:
+    creates: /opt/nessus_agent/var/nessus/agent-link.json
+  register: link_output
+  when:
+    - not nessus_fake_environment | default(false)
+    - nessus_manager_check is defined
+    - not nessus_manager_check.failed
+
+- name: Mostrar resultado del enlace (simulado o real)
+  ansible.builtin.debug:
+    msg: >-
+      {% if nessus_fake_environment | default(false) %}
+        🔁 Entorno de prueba: enlace simulado exitosamente.
+      {% else %}
+        {{ link_output.stdout | default('❌ No se pudo obtener la salida del enlace.') }}
+      {% endif %}
+
+- name: Verificar estado del agente
+  ansible.builtin.command: /opt/nessus_agent/sbin/nessuscli agent status
+  register: status_output
+  changed_when: false
+  failed_when: false
+  when: not nessus_fake_environment | default(false)
+
+- name: Validar que el agente está corriendo y vinculado
+  ansible.builtin.fail:
+    msg: "❌ El agente está activo, pero no está vinculado a un servidor Nessus."
+  when:
+    - not nessus_fake_environment | default(false)
+    - "'Running: Yes' in status_output.stdout"
+    - "'Link status: Not linked' in status_output.stdout"
+
+- name: Mostrar estado actual del agente (simulado o real)
+  ansible.builtin.debug:
+    msg: >-
+      {% if nessus_fake_environment | default(false) %}
+        ✅ Agente simulado: Estado = Running, Link status = Linked
+      {% else %}
+        {{ status_output.stdout | default('❌ No se pudo obtener el estado del agente.') }}
+      {% endif %}

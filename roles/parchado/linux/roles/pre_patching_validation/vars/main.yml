@@ -1,0 +1,33 @@
+---
+# vars file for pre_patching_validation
+
+internet_validation_flag: true
+satellite_validation_flag: true
+reposerver_validation_flag: true
+susemanager_validation_flag: true
+patch_source_validation: false
+space_validation: true
+space_validation_var: true
+space_validation_boot: true
+threshold_calc: ''
+var_threshold: 3145728
+cpu_validation: true
+mem_validation: true
+cluster_validation: true
+patching_pre_req_validation: false
+repo_file_validation: true
+repo_server_check_command: "yum repolist"
+validation_msg: ""
+archive_utility: 'tbd'
+exec_message: ''
+patch_status: 'failure'
+hop_detected: 0
+affected_host: "{{ inventory_hostname }}"
+jh_user: "{{ hostvars[affected_host]['jh_user'] }}"
+jh_ssh_private_key_file:
+  "{{ hostvars[affected_host]['jh_ssh_private_key_file'] }}"
+jh_ssh_extra_args: "{{ hostvars[affected_host]['jh_ssh_extra_args'] }}"
+readme_url:
+  "https://github.kyndryl.net/Continuous-Engineering/ansible_collection_patching_unix/blob/master/README.md"
+continue_execution: true
+sender: "(Ansible Robot) ansible-robot@kyndryl.com"

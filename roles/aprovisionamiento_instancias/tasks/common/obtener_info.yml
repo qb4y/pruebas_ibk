@@ -1,0 +1,82 @@
+---
+- name: "INICIO: Obtener información completa de VM"
+  ansible.builtin.debug:
+    msg:
+      - "VM: {{ vm_config.name }}"
+      - "Estado: OBTENIENDO INFORMACION COMPLETA"
+      - "Verificando readiness del sistema operativo..."
+  tags: [common, info, inicio]
+
+- name: "Esperar que SSH esté disponible con usuario operator"
+  ansible.builtin.wait_for:
+    host: "{{ vm_info_completa.instance.ipv4 }}"
+    port: 22
+    timeout: 60
+    state: started
+  register: ssh_ready
+  when:
+    - vm_info_completa.instance.ipv4 is defined
+    - vm_info_completa.instance.ipv4 != ""
+    - vm_ostype == "linux"
+  failed_when: false
+  tags: [common, info, ssh_ready]
+
+- name: "Esperar que RDP esté disponible con usuario operator"
+  ansible.builtin.wait_for:
+    host: "{{ vm_info_completa.instance.ipv4 }}"
+    port: 3389
+    timeout: 60
+    state: started
+  register: rdp_ready
+  when:
+    - vm_info_completa.instance.ipv4 is defined
+    - vm_info_completa.instance.ipv4 != ""
+    - vm_ostype == "windows"
+  failed_when: false
+  tags: [common, info, rdp_ready]
+
+- name: "Obtener información básica de VM"
+  community.vmware.vmware_guest_info:
+    hostname: "{{ vcenter_credentials.hostname }}"
+    username: "{{ vcenter_credentials.username }}"
+    password: "{{ vcenter_credentials.password }}"
+    validate_certs: false
+    datacenter: "{{ vcenter_credentials.datacenter }}"
+    name: "{{ vm_config.name }}"
+    schema: vsphere
+  register: vm_info_completa
+  tags: [common, info, basica]
+
+- name: "Mostrar información básica obtenida"
+  ansible.builtin.debug:
+    msg:
+      - "INFORMACIÓN BÁSICA DE VM:"
+      - "Nombre: {{ vm_config.name }}"
+      - "IP: {{ vm_info_completa.instance.ipv4 | default('Sin IP') }}"
+      - "Estado Power: {{ vm_info_completa.instance.runtime.powerState | default('Desconocido') }}"
+      - "Hostname: {{ vm_info_completa.instance.guest.hostname | default('Sin hostname') }}"
+      - "SO: {{ vm_info_completa.instance.guest.guestId | default('Desconocido') }}"
+      - "Tools: {{ vm_info_completa.instance.guest.toolsStatus | default('Desconocido') }}"
+  tags: [common, info, resumen_basico]
+
+- name: "Verificar VM encendida"
+  ansible.builtin.assert:
+    that:
+      - vm_info_completa.instance is defined
+      - vm_info_completa.instance.runtime.powerState == "poweredOn"
+    fail_msg: "VM no está encendida. Estado: {{ vm_info_completa.instance.runtime.powerState | default('desconocido') }}"
+    success_msg: "VM confirmada encendida"
+  tags: [common, info, verificar_estado]
+
+- name: "Confirmar VM completamente operativa"
+  ansible.builtin.debug:
+    msg:
+      - "VM COMPLETAMENTE OPERATIVA"
+      - "Nombre: {{ vm_config.name }}"
+      - "IP: {{ vm_info_completa.instance.ipv4 | default('Sin IP') }}"
+      - "Estado: {{ vm_info_completa.instance.runtime.powerState }}"
+      - "SSH Ready: {{ ssh_ready.state | default('N/A') if vm_ostype == 'linux' else 'N/A' }}"
+      - "RDP Ready: {{ rdp_ready.state | default('N/A') if vm_ostype == 'windows' else 'N/A' }}"
+      - "Usuario disponible: {{ 'root' if vm_ostype == 'linux' else 'operator' }}"
+      - "Contraseña: {{ 'i20unix06b' if vm_ostype == 'linux' else 'Bugtraq12' }}"
+  tags: [common, info, confirmacion]

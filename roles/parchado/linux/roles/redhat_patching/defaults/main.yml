@@ -1,0 +1,21 @@
+---
+yum_exclude_patch_list: ''
+patch_type: 'update_all'
+change_number: ''
+yum_clean_all: false
+fail_on_error: true
+enable_repo: ''
+disable_repo: ''
+use_custom_repo: false
+rhel6_baseurl: ''
+rhel7_baseurl: ''
+rhel8_baseurl: ''
+async_value: 0
+poll_value: 15
+disable_gpg_check: false
+run_patch_scan: false
+run_pre_patch_steps: false
+nfs_path: ''
+nfs_mountpoint: ''
+package_download_location: ''
+pre_patch_list: ''

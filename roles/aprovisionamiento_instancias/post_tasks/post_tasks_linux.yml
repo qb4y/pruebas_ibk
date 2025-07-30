@@ -1,0 +1,11 @@
+---
+## Post-Tasks específicos para Linux
+## Función: Verificaciones y reportes finales para Linux
+
+- name: "Verificar conectividad Linux"
+  ansible.builtin.include_tasks: verificar_conectividad.yml
+  tags: [post_tasks_linux, verificar_conectividad]
+
+- name: "Obtener información final Linux"
+  ansible.builtin.include_tasks: obtener_informacion_final.yml
+  tags: [post_tasks_linux, obtener_informacion] 

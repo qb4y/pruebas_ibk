@@ -1,0 +1,10 @@
+- name: Verificar espacio libre en /tmp (mínimo 1.5 GB)
+  ansible.builtin.set_fact:
+    tmp_mount: "{{ ansible_mounts | selectattr('mount', 'equalto', '/tmp') | list | first }}"
+
+- name: Abort si no hay espacio suficiente en /tmp
+  ansible.builtin.assert:
+    that:
+      - tmp_mount.size_available > 1500000000
+    fail_msg: "❌ Espacio insuficiente en /tmp para instalar Nessus (mínimo 1.5 GB requeridos)."
+    success_msg: "✅ Hay suficiente espacio libre en /tmp."

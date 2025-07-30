@@ -1,0 +1,120 @@
+---
+# ========== SUBIR ARCHIVO CSV A MINIO ==========
+- name: 📤 Iniciando proceso de subida a MinIO
+  ansible.builtin.debug:
+    msg:
+      - "🪣 Bucket destino: format-rcp-registers"
+      - "📄 Archivo local: {{ csv_local_path }}"
+      - "🎯 Ruta remota: {{ csv_remote_path }}"
+
+# ========== VERIFICAR QUE MC ESTÁ DISPONIBLE ==========
+- name: 🔧 Verificar que MinIO Client (mc) está disponible
+  ansible.builtin.command: mc --version
+  register: mc_version_check
+  failed_when: mc_version_check.rc != 0
+  delegate_to: localhost
+  run_once: true
+
+- name: ✅ Mostrar versión de mc disponible
+  ansible.builtin.debug:
+    msg: "MinIO Client encontrado: {{ mc_version_check.stdout.split('\n')[0] }}"
+  delegate_to: localhost
+
+# ========== CONFIGURAR ALIAS DE MINIO ==========
+- name: 🔐 Configurar alias de MinIO para subida
+  ansible.builtin.command: >
+    mc alias set rcpMinio 
+    http://{{ minio_host }}:{{ minio_port }} 
+    {{ minio_user }} 
+    {{ minio_password }}
+  register: mc_alias_result
+  failed_when: mc_alias_result.rc != 0
+  delegate_to: localhost
+  run_once: true
+  no_log: true
+
+- name: ✅ Verificar configuración del alias
+  ansible.builtin.debug:
+    msg: "Alias 'rcpMinio' configurado exitosamente"
+  delegate_to: localhost
+
+# ========== VERIFICAR CONECTIVIDAD ==========
+- name: 🔍 Verificar conectividad con MinIO
+  ansible.builtin.command: mc ls rcpMinio/
+  register: mc_connectivity_check
+  failed_when: false
+  delegate_to: localhost
+  run_once: true
+
+- name: ❌ Fallar si no hay conectividad con MinIO
+  ansible.builtin.fail:
+    msg: "❌ No se puede conectar a MinIO. Verificar credenciales y conectividad."
+  when: mc_connectivity_check.rc != 0
+
+# ========== VERIFICAR BUCKET ==========
+- name: 🪣 Verificar que el bucket '{{ minio_bucket }}' existe
+  ansible.builtin.command: mc ls rcpMinio/{{ minio_bucket }}/
+  register: bucket_check
+  failed_when: bucket_check.rc != 0
+  delegate_to: localhost
+  run_once: true
+
+- name: ✅ Bucket verificado exitosamente
+  ansible.builtin.debug:
+    msg: "Bucket '{{ minio_bucket }}' encontrado y accesible"
+  delegate_to: localhost
+
+# ========== VERIFICAR ARCHIVO LOCAL ==========
+- name: 🔍 Verificar que el archivo CSV local existe
+  ansible.builtin.stat:
+    path: "{{ csv_local_path }}"
+  register: csv_file_stat
+  delegate_to: localhost
+
+- name: ❌ Fallar si el archivo CSV no existe
+  ansible.builtin.fail:
+    msg: "❌ El archivo CSV no existe en la ruta: {{ csv_local_path }}"
+  when: not csv_file_stat.stat.exists
+
+- name: 📊 Mostrar información del archivo CSV
+  ansible.builtin.debug:
+    msg:
+      - "📄 Archivo: {{ csv_local_path }}"
+      - "📏 Tamaño: {{ csv_file_stat.stat.size }} bytes"
+      - "🕐 Modificado: {{ csv_file_stat.stat.mtime }}"
+  delegate_to: localhost
+
+# ========== SUBIR ARCHIVO A MINIO ==========
+- name: 📤 Subir archivo CSV a MinIO
+  ansible.builtin.command: >
+    mc cp {{ csv_local_path }} 
+    rcpMinio/{{ minio_bucket }}/{{ csv_remote_path }}
+  register: mc_upload_result
+  failed_when: mc_upload_result.rc != 0
+  delegate_to: localhost
+
+- name: ✅ Confirmar subida exitosa
+  ansible.builtin.debug:
+    msg: 
+      - "🎉 Archivo subido exitosamente"
+      - "📤 Salida: {{ mc_upload_result.stdout if mc_upload_result.stdout else 'Subida exitosa sin salida adicional' }}"
+  delegate_to: localhost
+
+# ========== VERIFICAR ARCHIVO EN MINIO ==========
+- name: 🔍 Verificar que el archivo se subió correctamente
+  ansible.builtin.command: mc stat rcpMinio/{{ minio_bucket }}/{{ csv_remote_path }}
+  register: upload_verification
+  failed_when: upload_verification.rc != 0
+  delegate_to: localhost
+
+- name: 📋 Mostrar información del archivo en MinIO
+  ansible.builtin.debug:
+    msg: "{{ upload_verification.stdout_lines }}"
+  delegate_to: localhost
+
+# ========== LIMPIAR ALIAS TEMPORAL ==========
+- name: 🧹 Remover alias temporal de MinIO
+  ansible.builtin.command: mc alias remove rcpMinio
+  failed_when: false
+  delegate_to: localhost
+  run_once: true

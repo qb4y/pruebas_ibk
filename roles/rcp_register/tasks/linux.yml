@@ -1,0 +1,76 @@
+---
+# ========== PROCESAMIENTO LINUX ==========
+- name: 🐧 Procesando datos para sistema Linux
+  ansible.builtin.debug:
+    msg: "Recolectando información del sistema Linux: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+
+# ========== OBTENER HOSTNAME ==========
+- name: 🏷️  Obtener hostname del sistema
+  ansible.builtin.set_fact:
+    rcp_hostname: "{{ ansible_hostname }}"
+
+- name: ✅ Validar hostname Linux
+  ansible.builtin.assert:
+    that:
+      - rcp_hostname is defined
+      - rcp_hostname != ""
+      - rcp_hostname | length > 0
+    fail_msg: "❌ No se pudo obtener el hostname del sistema Linux"
+
+# ========== OBTENER IP ADDRESS ==========
+- name: 🌐 Obtener IP address principal
+  ansible.builtin.set_fact:
+    rcp_ip_address: "{{ ansible_default_ipv4.address }}"
+
+- name: ✅ Validar IP address Linux
+  ansible.builtin.assert:
+    that:
+      - rcp_ip_address is defined
+      - rcp_ip_address != ""
+      - rcp_ip_address is match("^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$")
+    fail_msg: "❌ IP address no válida o no encontrada: {{ rcp_ip_address | default('NO DEFINIDA') }}"
+
+# ========== FORMATEAR VERSION DEL SO ==========
+- name: 🔧 Formatear versión del SO según formato RCP para Linux
+  ansible.builtin.set_fact:
+    rcp_os_version: >-
+      {%- if ansible_distribution == 'Red Hat Enterprise Linux' -%}
+        Red Hat_Red Hat Linux Enterprise Server (RHEL) {{ ansible_distribution_major_version }}
+      {%- elif ansible_distribution == 'RedHat' -%}
+        Red Hat_Red Hat Linux Enterprise Server (RHEL) {{ ansible_distribution_major_version }}
+      {%- elif ansible_distribution == 'CentOS' -%}
+        Red Hat_CentOS {{ ansible_distribution_major_version }}
+      {%- elif ansible_distribution == 'Rocky' -%}
+        Red Hat_Rocky Linux {{ ansible_distribution_major_version }}
+      {%- elif ansible_distribution == 'AlmaLinux' -%}
+        Red Hat_AlmaLinux {{ ansible_distribution_major_version }}
+      {%- elif ansible_distribution == 'Ubuntu' -%}
+        Ubuntu_Ubuntu {{ ansible_distribution_version }}
+      {%- elif ansible_distribution == 'Debian' -%}
+        Debian_Debian {{ ansible_distribution_major_version }}
+      {%- else -%}
+        {{ ansible_distribution }}_{{ ansible_distribution }} {{ ansible_distribution_version }}
+      {%- endif -%}
+
+- name: ✅ Validar formato de versión del SO Linux
+  ansible.builtin.assert:
+    that:
+      - rcp_os_version is defined
+      - rcp_os_version != ""
+      - rcp_os_version | length > 5
+    fail_msg: "❌ No se pudo formatear correctamente la versión del SO Linux"
+
+# ========== GENERAR NOMBRE DEL ARCHIVO CSV ==========
+- name: 📄 Generar nombre del archivo CSV
+  ansible.builtin.set_fact:
+    rcp_csv_filename: "{{ rcp_hostname }}_{{ ansible_date_time.date }}.csv"
+
+# ========== MOSTRAR DATOS RECOLECTADOS ==========
+- name: 📋 Mostrar datos recolectados para Linux
+  ansible.builtin.debug:
+    msg:
+      - "🐧 Sistema: Linux"
+      - "🏷️  Hostname: {{ rcp_hostname }}"
+      - "🌐 IP Address: {{ rcp_ip_address }}"
+      - "💿 OS Version: {{ rcp_os_version }}"
+      - "📄 Archivo CSV: {{ rcp_csv_filename }}"

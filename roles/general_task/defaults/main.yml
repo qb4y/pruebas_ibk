@@ -1,0 +1,40 @@
+---
+winrm_transport: ntlm
+cert_validation: ignore
+winrm_port: 5985
+winrm_scheme: http
+
+# Configuración de Windows
+windows_config:
+  temp_log_path: "C:\\temp\\ansible_logs"
+  pagefile_path: "C:\\pagefile.sys"
+  registry_path: "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management"
+  powershell_execution_policy: "RemoteSigned"
+# Variables por defecto para Linux
+ssh_port: 22
+usar_sudo: true
+
+# Variables por defecto para paginación
+configurar_paginacion: true
+forzar_reinicio: false
+validar_configuracion: true
+usar_registro_alternativo: false
+limpiar_temporales: false
+crear_backup: true
+
+# Configuración de Linux
+linux_config:
+  temp_log_path: "/tmp/ansible_logs"
+  swap_file_path: "/swapfile"
+  swap_priority: 10
+  swappiness: 60
+
+# Variables de control de ejecución
+debug_mode: false
+dry_run: false
+timeout_tasks: 300
+
+# Configuración de logs
+enable_logging: true
+log_level: info
+log_retention_days: 30

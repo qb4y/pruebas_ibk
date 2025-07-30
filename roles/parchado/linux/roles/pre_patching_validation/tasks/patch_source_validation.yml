@@ -1,0 +1,290 @@
+---
+
+- name: Internet patch source validation
+  when: patch_source == 'internet'
+  block:
+
+    - name: Set command to verify internet patch source
+      ansible.builtin.set_fact:
+        internet_check_command:
+          "{% if 'SLES' in ansible_distribution %}zypper repos
+          {% elif ansible_distribution == 'Ubuntu' %}apt-get check
+          {% else %}yum check-update{% endif %}"
+
+    - name: Verify connectivity
+      ansible.builtin.command: "{{ internet_check_command }}"
+      register: internet_source_validation
+      failed_when: false
+      changed_when: false
+
+    - name: Set validation flag
+      ansible.builtin.set_fact:
+        internet_validation_flag: false
+      when: internet_source_validation.rc == 1
+
+- name: Satellite patch source validation
+  when: patch_source == 'satellite'
+  block:
+
+    - name: Verify subscription status
+      ansible.builtin.command: "{{ item }}"
+      register: satellite_source_validation
+      changed_when: false
+      failed_when: false
+      loop:
+        - subscription-manager status
+        - subscription-manager identity
+
+    - name: Set validation flag
+      ansible.builtin.set_fact:
+        satellite_validation_flag: false
+      when:
+        - "'Current' not in satellite_source_validation.results[0].stdout"
+        - "'Overall Status: Unknown' not in
+          satellite_source_validation.results[0].stdout"
+        - "'This host has access to content' not in
+          satellite_source_validation.results[0].stdout"
+        - "'Default_Organization' not in
+          satellite_source_validation.results[1].stdout"
+
+  rescue:
+
+    - name: Return code generation in case of
+            patch source verification command failure
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5000
+        rc_message:
+          "The command to verify patching source has failed.
+          Further investigation is required by the developer."
+
+    - name: Set validation flag and message
+      ansible.builtin.set_fact:
+        satellite_validation_flag: false
+        exec_message:
+          "{{ exec_message }}
+          The command to verify patching source has failed.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "The command to verify patching source has failed"
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Reposerver patch source validation
+  when: patch_source == 'reposerver'
+  block:
+
+    - name: Set repo server registation command for Ubuntu
+      ansible.builtin.set_fact:
+        repo_server_check_command: "apt-cache policy"
+      when: ansible_distribution == "Ubuntu"
+
+    - name: Verify repo server registration
+      ansible.builtin.command: "{{ repo_server_check_command }}"
+      register: reposerver_source_validation
+      changed_when: false
+
+    - name: Set validation flag
+      ansible.builtin.set_fact:
+        reposerver_validation_flag: false
+      when:
+        reposerver_source_validation.rc != 0 or
+        not reposerver_source_validation.stdout_lines
+        is regex('^.*(repolist\S\s[1-9]|500\shttp).*$')
+
+    - name: Set validation flag
+      ansible.builtin.set_fact:
+        reposerver_validation_flag: true
+      when:
+        - (ansible_distribution == "RedHat" or
+          ansible_distribution == "CentOS" or
+          ansible_distribution == "OracleLinux" or
+          ansible_distribution == "Rocky")
+        - ansible_distribution_major_version | int > 7
+        - reposerver_source_validation.rc == 0
+
+  rescue:
+
+    - name: Return code generation in case of
+            patch source verification command failure
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5000
+        rc_message:
+          "The command to verify patching source has failed.
+          Further investigation is required by the developer."
+
+    - name: Set validation flag and message
+      ansible.builtin.set_fact:
+        reposerver_validation_flag: false
+        exec_message:
+          "{{ exec_message }}
+          The command to verify patching source has failed.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "The command to verify patching source has failed"
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Susemanager patch source validation
+  when: patch_source == 'susemanager'
+  block:
+
+    - name: Verify Suse product registration  # noqa risky-shell-pipe
+      ansible.builtin.shell: |
+        zypper lr | cut -d'|' -f2,4 | egrep -i 'suse|spacewalk'
+      register: susemanager_source_validation
+      changed_when: false
+
+    - name: Set validation flag
+      ansible.builtin.set_fact:
+        susemanager_validation_flag: false
+      when: "'Yes' not in susemanager_source_validation.stdout"
+
+  rescue:
+
+    - name: Return code generation in case of
+            patch source verification command failure
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5000
+        rc_message:
+          "The command to verify patching source has failed.
+          Further investigation is required by the developer."
+
+    - name: Set validation flag and message
+      ansible.builtin.set_fact:
+        susemanager_validation_flag: false
+        exec_message:
+          "{{ exec_message }}
+          The command to verify patching source has failed.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "The command to verify patching source has failed"
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Invalid patching source
+  when:
+    - patch_source != 'internet'
+    - patch_source != 'satellite'
+    - patch_source != 'reposerver'
+    - patch_source != 'susemanager'
+  block:
+
+    - name: Return code generation in case invalid patch source is provided
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "account"
+        rc_group: "misconfiguration"
+        rc_number: 6000
+        rc_message:
+          "{{ patch_source }} is an invalid patch source.
+          Please refer readme file for more details."
+        documentation: "{{ readme_url }}"
+
+    - name: Set validation message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Invalid patching source.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Invalid patching source"
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Patch source validation
+  when: continue_execution
+  block:
+
+    - name: Patch source validation
+      ansible.builtin.set_fact:
+        patch_source_validation: true
+      when:
+        - internet_validation_flag
+        - satellite_validation_flag
+        - reposerver_validation_flag
+        - susemanager_validation_flag
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          {{ patch_source }} patching source
+          is not configured correctly.\n\n"
+      when: not patch_source_validation

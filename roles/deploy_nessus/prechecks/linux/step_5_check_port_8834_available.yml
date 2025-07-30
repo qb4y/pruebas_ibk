@@ -1,0 +1,24 @@
+- name: Verificar si el puerto 8834 está en uso con ss
+  ansible.builtin.shell: |
+    set -o pipefail
+    ss -tuln | grep -q ':8834'
+  register: ss_port_check
+  changed_when: false
+  failed_when: false
+
+- name: Verificar si el puerto 8834 está en uso con lsof (fallback)
+  ansible.builtin.command: lsof -i :8834
+  register: lsof_port_check
+  changed_when: false
+  failed_when: false
+  when: ss_port_check.rc != 0
+
+- name: Abort si el puerto 8834 está en uso (detectado por ss o lsof)
+  ansible.builtin.fail:
+    msg: "❌ El puerto 8834 está en uso. No se puede continuar con la instalación de Nessus."
+  when: ss_port_check.rc == 0 or (lsof_port_check.rc is defined and lsof_port_check.rc == 0)
+
+- name: Confirmar que el puerto 8834 está libre
+  ansible.builtin.debug:
+    msg: "✅ El puerto 8834 está libre y disponible para usar Nessus."
+  when: ss_port_check.rc != 0 and (lsof_port_check.rc is not defined or lsof_port_check.rc != 0)

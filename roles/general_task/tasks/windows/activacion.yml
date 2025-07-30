@@ -1,0 +1,318 @@
+---
+- name: Obtener información básica del sistema Windows
+  ansible.windows.win_shell: |
+    $os = Get-CimInstance -ClassName Win32_OperatingSystem
+    Write-Output $os.Caption
+  register: windows_os_name_simple
+  timeout: 30
+  tags:
+    - windows
+    - activation
+    - activacion
+    - validation
+
+- name: Verificar versión de Windows soportada para activación
+  ansible.builtin.debug:
+    msg: "Windows detectado: {{ windows_os_name_simple.stdout | trim }} - Continuando con activación"
+  tags:
+    - windows
+    - activation
+    - activacion
+    - validation
+
+- name: Establecer información del sistema
+  ansible.builtin.set_fact:
+    os_info:
+      os_name: "{{ windows_os_name_simple.stdout | trim }}"
+      computer_name: "{{ ansible_hostname }}"
+  tags:
+    - windows
+    - activation
+    - activacion
+    - os_info
+
+- name: Mostrar información del sistema
+  ansible.builtin.debug:
+    var: os_info
+  tags:
+    - windows
+    - activation
+    - activacion
+    - os_info
+
+- name: Determinar versión exacta de Windows para licencia MAK
+  ansible.builtin.set_fact:
+    windows_version_key: "{{ item.key }}"
+    mak_license_key: "{{ item.value }}"
+  when:
+    - >-
+      ("2022" in os_info.os_name and "2022" in item.key) or
+      ("2019" in os_info.os_name and "2019" in item.key) or
+      ("2016" in os_info.os_name and "2016" in item.key) or
+      ("2012" in os_info.os_name and "2012" in item.key)
+    - item.value != ""
+  loop: "{{ windows_config.supported_versions | dict2items }}"
+  tags:
+    - windows
+    - activation
+    - activacion
+    - license_mapping
+
+- name: Verificar si se encontró licencia MAK para esta versión
+  ansible.builtin.assert:
+    that:
+      - mak_license_key is defined
+      - mak_license_key | length > 0
+    fail_msg: |
+      No se encontró licencia MAK para: {{ os_info.os_name }}
+      Versiones soportadas: {{ windows_config.supported_versions.keys() | list | join(', ') }}
+    success_msg: "Licencia MAK encontrada para: {{ windows_version_key }}"
+  tags:
+    - windows
+    - activation
+    - activacion
+    - validation
+
+- name: Verificar estado actual de activación (simplificado)
+  ansible.windows.win_shell: |
+    $products = Get-CimInstance -ClassName SoftwareLicensingProduct | Where-Object {
+      $_.ApplicationId -eq "55c92734-d682-4d71-983e-d6ec3f16059f" -and
+      $_.PartialProductKey -ne $null
+    } | Select-Object -First 1
+
+    if ($products -and $products.LicenseStatus -eq 1) {
+      $result = @{
+        is_activated = $true
+        license_status = "Licensed"
+        activation_required = $false
+      }
+    } else {
+      $result = @{
+        is_activated = $false
+        license_status = "Not Licensed"
+        activation_required = $true
+      }
+    }
+
+    $result | ConvertTo-Json
+  register: activation_status_check
+  timeout: 45
+  tags:
+    - windows
+    - activation
+    - activacion
+    - status_check
+
+- name: Procesar estado de activación actual
+  ansible.builtin.set_fact:
+    current_activation: "{{ activation_status_check.stdout | from_json }}"
+  tags:
+    - windows
+    - activation
+    - activacion
+    - status_check
+
+- name: Mostrar estado actual de activación
+  ansible.builtin.debug:
+    var: activation_status
+  vars:
+    activation_status:
+      sistema: "{{ os_info.os_name }}"
+      equipo: "{{ os_info.computer_name }}"
+      dominio: "{{ os_info.domain | default(os_info.workgroup) }}"
+      estado_licencia:
+        activado: "{{ current_activation.is_activated }}"
+        estado: "{{ current_activation.license_status }}"
+        clave_parcial: "{{ current_activation.product_key_partial | default('N/A') }}"
+        periodo_gracia_minutos: "{{ current_activation.grace_period_remaining | default(0) }}"
+        requiere_activacion: "{{ current_activation.activation_required }}"
+      licencia_mak_asignada: "{{ windows_version_key }}"
+  tags:
+    - windows
+    - activation
+    - activacion
+    - debug
+
+- name: Instalar licencia MAK usando slmgr (optimizado)
+  ansible.windows.win_command: cscript //nologo C:\Windows\System32\slmgr.vbs /ipk {{ mak_license_key }}
+  register: mak_installation_result
+  when:
+    - current_activation.activation_required | bool
+    - mak_license_key is defined
+  timeout: 90
+  ignore_errors: false
+  tags:
+    - windows
+    - activation
+    - activacion
+    - install_mak
+
+- name: Mostrar resultado de instalación MAK
+  ansible.builtin.debug:
+    var: resultado_instalacion_mak
+  vars:
+    resultado_instalacion_mak:
+      clave_parcial: "{{ mak_license_key[:5] }}*********************"
+      resultado: "{{ 'Instalada exitosamente' if mak_installation_result.rc == 0 else 'Error en instalación' }}"
+      codigo_retorno: "{{ mak_installation_result.rc }}"
+  when: mak_installation_result is not skipped
+  tags:
+    - windows
+    - activation
+    - activacion
+    - install_mak
+
+- name: Activar Windows usando slmgr (optimizado)
+  ansible.windows.win_command: cscript //nologo C:\Windows\System32\slmgr.vbs /ato
+  register: activation_result
+  when:
+    - mak_installation_result is succeeded
+    - mak_installation_result is not skipped
+  timeout: 120
+  ignore_errors: true
+  failed_when: false
+  tags:
+    - windows
+    - activation
+    - activacion
+    - activate
+
+- name: Establecer resultado de activación
+  ansible.builtin.set_fact:
+    activation_success: "{{ activation_result.rc == 0 }}"
+    activation_method: "{{ 'online' if activation_result.rc == 0 else 'phone_required' }}"
+    activation_error_code: "{{ activation_result.rc if activation_result.rc != 0 else 'success' }}"
+    needs_phone_activation: "{{ activation_result.rc != 0 }}"
+  when: activation_result is not skipped
+  tags:
+    - windows
+    - activation
+    - activacion
+    - activate
+
+- name: Mostrar información para activación telefónica si es necesaria
+  ansible.builtin.debug:
+    var: phone_activation_info
+  vars:
+    phone_activation_info:
+      activacion_telefonica_requerida: true
+      razon: "La activación online falló - Error de conectividad de red"
+      codigo_error: "{{ activation_error_code | default('N/A') }}"
+      error_descripcion: "0x80072EE7 - No se puede contactar servidor de activación Microsoft"
+      instrucciones:
+        - "Abrir CMD como Administrador"
+        - "Ejecutar: slui 4"
+        - "Seleccionar país: Colombia (080051900)"
+        - "Llamar al número proporcionado"
+        - "Proporcionar el Installation ID cuando se solicite"
+      numero_activacion: "080051900"
+      clave_instalada_parcial: "{{ mak_license_key[:5] }}*********************"
+      comando_installation_id: "cscript //nologo C:\\Windows\\System32\\slmgr.vbs /dti"
+      comando_slui: "slui.exe 0x2a 0x80072EE7"
+  when:
+    - activation_result is defined
+    - needs_phone_activation | default(false)
+  tags:
+    - windows
+    - activation
+    - activacion
+    - phone_activation
+
+- name: Verificar estado final de activación (simplificado)
+  ansible.windows.win_command: cscript //nologo C:\Windows\System32\slmgr.vbs /xpr
+  register: final_activation_check
+  timeout: 30
+  ignore_errors: true
+  tags:
+    - windows
+    - activation
+    - activacion
+    - final_validation
+
+- name: Establecer estado final de activación
+  ansible.builtin.set_fact:
+    final_activation:
+      is_activated: "{{ activation_success | default(false) }}"
+      license_status: "{{ 'Licensed' if activation_success | default(false) else 'Not Licensed' }}"
+      activation_method_used: "{{ activation_method | default('none') }}"
+  tags:
+    - windows
+    - activation
+    - activacion
+    - final_validation
+
+- name: Mostrar resultado final de activación
+  ansible.builtin.debug:
+    var: resultado_final_activacion
+  vars:
+    resultado_final_activacion:
+      sistema: "{{ os_info.os_name }}"
+      equipo: "{{ os_info.computer_name }}"
+      resultado_activacion:
+        exitosa: "{{ final_activation.is_activated }}"
+        estado: "{{ 'ACTIVADO EXITOSAMENTE' if final_activation.is_activated else 'ACTIVACIÓN PENDIENTE' }}"
+        clave_parcial: "{{ final_activation.product_key_partial if final_activation.is_activated else 'N/A' }}"
+        familia_licencia: "{{ final_activation.license_family if final_activation.is_activated else 'N/A' }}"
+        id_activacion: "{{ final_activation.activation_id if final_activation.is_activated else 'N/A' }}"
+        requiere_activacion_telefonica: "{{ not final_activation.is_activated }}"
+        numero_telefono: "{{ '080051900' if not final_activation.is_activated else 'N/A' }}"
+        comando_requerido: "{{ 'slui 4' if not final_activation.is_activated else 'N/A' }}"
+      licencia_mak_utilizada: "{{ windows_version_key }}"
+      timestamp: "{{ ansible_date_time.iso8601 }}"
+  tags:
+    - windows
+    - activation
+    - activacion
+    - final_validation
+
+- name: Crear artefacto de activación aplicada
+  ansible.builtin.set_fact:
+    activacion_aplicada:
+      timestamp: "{{ ansible_date_time.iso8601 }}"
+      servidor: "{{ ansible_hostname }}"
+      usuario_conexion: "{{ ansible_user }}"
+      sistema_operativo: "{{ os_info.os_name }}"
+      computer_name: "{{ os_info.computer_name }}"
+      estado_inicial:
+        activado: "{{ current_activation.is_activated }}"
+        estado_licencia: "{{ current_activation.license_status }}"
+        requeria_activacion: "{{ current_activation.activation_required }}"
+      licencia_aplicada:
+        version_windows: "{{ windows_version_key | default('N/A') }}"
+        clave_mak_parcial: "{{ mak_license_key[:5] + '*********************' if mak_license_key is defined else 'N/A' }}"
+        metodo_instalacion: "cscript slmgr.vbs /ipk"
+      resultado_activacion:
+        exitosa: "{{ final_activation.is_activated }}"
+        estado_final: "{{ final_activation.license_status }}"
+        metodo_activacion: "{{ final_activation.activation_method_used | default('N/A') }}"
+        activacion_telefonica_requerida: "{{ needs_phone_activation | default(false) }}"
+        codigo_error_activacion: "{{ activation_error_code | default('N/A') }}"
+        numero_activacion: "{{ '080051900' if needs_phone_activation | default(false) else 'N/A' }}"
+      cambios_realizados: "{{ mak_installation_result.changed | default(false) }}"
+  tags:
+    - windows
+    - activation
+    - activacion
+    - artifacts
+
+- name: Mostrar resumen final de activación
+  ansible.builtin.debug:
+    var: resumen_final_activacion
+  vars:
+    resumen_final_activacion:
+      servidor: "{{ ansible_hostname }}"
+      sistema_operativo: "{{ os_info.os_name }}"
+      licencia_mak_aplicada: "{{ mak_license_key[:5] + '*********************' if mak_license_key is defined else 'N/A' }}"
+      activacion_exitosa: "{{ activation_success | default(false) }}"
+      requiere_activacion_telefonica: "{{ needs_phone_activation | default(false) }}"
+      codigo_error: "{{ activation_error_code if activation_error_code != 'success' else 'N/A' }}"
+      numero_telefono_colombia: "{{ '080051900' if needs_phone_activation | default(false) else 'N/A' }}"
+      comando_installation_id: "{{ 'cscript //nologo C:\\Windows\\System32\\slmgr.vbs /dti' if needs_phone_activation | default(false) else 'N/A' }}"
+      estado_final: "{{ 'ACTIVADO' if activation_success | default(false) else 'PENDIENTE ACTIVACION TELEFONICA' }}"
+      timestamp: "{{ ansible_date_time.iso8601 }}"
+  tags:
+    - windows
+    - activation
+    - activacion
+    - final_summary
+    - always

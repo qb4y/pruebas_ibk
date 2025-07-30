@@ -1,0 +1,49 @@
+---
+galaxy_info:
+  role_name: general_task
+  author: Paulo Huaman
+  description: >
+    Rol de configuración inicial multiplataforma.
+    Permite configurar el hostname, DNS y memoria swap en sistemas Linux,
+    así como habilitar WinRM y gestionar registros DNS básicos en Windows Server.
+    Es utilizado principalmente para la configuración post-aprovisionamiento de servidores virtualizados.
+
+  company: Kyndryl
+  license: Kyndryl Intellectual Property
+  min_ansible_version: "2.12"
+
+  platforms:
+    - name: EL
+      versions:
+        - 7
+        - 8
+        - 9
+    - name: Debian
+      versions:
+        - 9
+        - 10
+        - 11
+    - name: Windows
+      versions:
+        - 2012
+        - 2016
+        - 2019
+        - 2022
+
+  galaxy_tags:
+    - configuration
+    - dns
+    - swap
+    - hostname
+    - winrm
+    - linux
+    - windows
+    - automation
+    - vmware
+    - postconfig
+    - general_task
+
+collections:
+  - community.general
+  - ansible.windows
+  - ansible.posix

@@ -1,0 +1,90 @@
+---
+- name: Check for lock file
+  block:
+
+    - name: Fail if an execution is already running
+      ansible.builtin.fail:
+        msg: "Another execution is already running"
+      when:
+        - ansible_local.unix_patching.custom_facts.lock_file_timestamp
+          is defined
+        - "((ansible_date_time.iso8601_basic_short
+          | to_datetime('%Y%m%dT%H%M%S')) -
+          (ansible_local.unix_patching.custom_facts.lock_file_timestamp
+          | to_datetime('%Y%m%dT%H%M%S'))).total_seconds() |
+          int / 60 | int < 10"
+
+    - name: Remove stale lock file
+      ansible.builtin.file:
+        path: "/etc/ansible/facts.d"
+        state: "absent"
+      when:
+        - ansible_local.unix_patching.custom_facts.lock_file_timestamp
+          is defined
+        - "((ansible_date_time.iso8601_basic_short
+          | to_datetime('%Y%m%dT%H%M%S')) -
+          (ansible_local.unix_patching.custom_facts.lock_file_timestamp
+          | to_datetime('%Y%m%dT%H%M%S'))).total_seconds() |
+          int / 60 | int >= 10"
+
+  rescue:
+
+    - name: Return code generation in case of duplicate execution
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "account"
+        rc_group: "misconfiguration"
+        rc_number: 6010
+        rc_message:
+          "An execution for the same playbook is already running on the host.
+          Please wait for the current execution to complete."
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          An execution for the same playbook is already running on the host.\n
+          Please wait for the current execution to complete.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Another execution is already running"
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Create a lock to avoid parallel execution
+  block:
+
+    - name: Create directory for ansible custom facts
+      ansible.builtin.file:
+        state: "directory"
+        recurse: true
+        path: "/etc/ansible/facts.d"
+        mode: "0755"
+      register: lock_file_dir
+
+    - name: Create custom fact for lock file  # noqa risky-file-permissions
+      ansible.builtin.blockinfile:
+        path: "/etc/ansible/facts.d/unix_patching.fact"
+        block: |
+          [custom_facts]
+          lock_file_timestamp={{
+          ansible_date_time.iso8601_basic_short }}
+        marker: ""
+        create: true
+
+  rescue:
+
+    - name: Failed to create lock file
+      ansible.builtin.debug:
+        msg: "Failed to create lock file"
+        verbosity: 2

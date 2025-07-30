@@ -1,0 +1,34 @@
+---
+- name: Scanning for updates
+  win_updates:
+    state: searched
+    category_names: "{{ selected_category | default(['CriticalUpdates', 'SecurityUpdates']) }}"
+  register: updates
+
+- name: Check WSUS connectivity and updates size
+  block:
+    - name: create a temp directory to save the PS script
+      win_tempfile:
+        state: directory
+        prefix: update_size
+        path: "%windir%/temp"
+      register: dir_output
+
+    - name: copy PS script to endpoint
+      win_copy:
+        src: wsus_and_disk_space_check.ps1
+        dest: "{{ dir_output.path }}/wsus_and_disk_space_check.ps1"
+
+    - name: execute the PS script
+      win_shell: "{{ dir_output.path }}/wsus_and_disk_space_check.ps1"
+      register: wsus_disk_check_result
+
+    - name: display the PS script results
+      debug:
+        var: wsus_disk_check_result.stdout_lines
+
+    - name: cleanup temporary directory
+      win_file:
+        path: "{{ dir_output.path }}"
+        state: absent
+      ignore_errors: true

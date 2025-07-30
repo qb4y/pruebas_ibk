@@ -1,0 +1,120 @@
+- name: Recolectar facts del sistema
+  block:
+    - ansible.builtin.setup:
+      when: ansible_os_family is not defined
+
+    - ansible.builtin.debug:
+        var: ansible_facts
+  tags:
+    - facts
+    - recolectar_informacion
+
+- name: Detectar sistema operativo y configurar variables
+  ansible.builtin.set_fact:
+    os_detected: "{{ ansible_os_family | lower }}"
+    is_windows: "{{ ansible_os_family == 'Windows' }}"
+    is_linux: "{{ ansible_os_family in ['RedHat', 'Debian', 'Ubuntu', 'Rocky', 'AlmaLinux'] }}"
+  tags:
+    - always
+    - os_detection
+
+- name: Configurar credenciales según el SO detectado (Windows)
+  ansible.builtin.set_fact:
+    ansible_user: "{{ windows_user | default(ansible_user|default(lookup('env','ANSIBLE_USER'))) }}"
+    ansible_password: "{{ windows_password | default(ansible_password|default(lookup('env','ANSIBLE_PASSWORD'))) }}"
+    ansible_connection: winrm
+    ansible_winrm_transport: "{{ winrm_transport | default('ntlm') }}"
+    ansible_winrm_server_cert_validation: "{{ cert_validation | default('ignore') }}"
+    ansible_port: "{{ winrm_port | default(5985) }}"
+    ansible_become: false
+    ansible_become_method: ""
+  when: is_windows | bool
+  tags:
+    - always
+    - windows_setup
+
+- name: Configurar credenciales para Linux
+  ansible.builtin.set_fact:
+    ansible_user: "{{ linux_user | default(ansible_user) }}"
+    ansible_password: "{{ linux_password | default(ansible_password) }}"
+    ansible_connection: ssh
+    ansible_port: "{{ ssh_port | default(22) }}"
+    ansible_become: "{{ (is_linux | bool) and (usar_sudo | default(true)) }}"
+    ansible_become_method: "{{ (is_linux | bool) | ternary(become_method | default('sudo'), '') }}"
+  when:
+    - is_linux | bool
+    - linux_user is defined
+    - not is_windows | bool
+  tags:
+    - linux_setup
+
+- name: Forzar limpieza de become para Windows
+  ansible.builtin.set_fact:
+    ansible_become: false
+    ansible_become_method: ""
+  when: is_windows | bool
+  tags:
+    - always
+    - windows_setup
+
+- name: Mostrar información del SO en formato JSON
+  ansible.builtin.debug:
+    var: "info_sistema"
+  vars:
+    info_sistema:
+      so_detectado: "{{ os_detected }}"
+      familia: "{{ ansible_os_family }}"
+      es_windows: "{{ is_windows }}"
+      es_linux: "{{ is_linux }}"
+      usuario_configurado: "{{ ansible_user }}"
+      conexion: "{{ ansible_connection }}"
+      become_habilitado: "{{ ansible_become | default(false) }}"
+      metodo_become: "{{ ansible_become_method | default('N/A') }}"
+      arquitectura: "{{ ansible_architecture }}"
+      memoria_ram_mb: "{{ ansible_memtotal_mb | default('N/A') }}"
+  tags:
+    - os_detection
+    - debug
+
+- name: Incluir pre-tasks
+  ansible.builtin.include_tasks:
+    file: pre_tasks/main.yml
+  tags:
+    - pre_task
+
+- name: Incluir data mapper
+  ansible.builtin.include_vars:
+    file: ../vars/data_mapper.yml
+  tags:
+    - always
+    - data_mapper
+
+- name: Ejecutar tareas específicas de Windows
+  ansible.builtin.include_tasks:
+    file: windows/paginacion.yml
+  when: is_windows | bool
+  tags:
+    - windows
+    - paginacion
+
+- name: Activar windows server
+  ansible.builtin.include_tasks:
+    file: windows/activacion.yml
+  when: is_windows | bool
+  tags:
+    - windows
+    - activacion
+
+- name: Ejecutar tareas específicas de Linux
+  ansible.builtin.include_tasks:
+    file: linux/paginacion.yml
+  when: is_linux | bool
+  tags:
+    - linux
+    - paginacion
+
+- name: Incluir post-tasks
+  ansible.builtin.include_tasks:
+    file: post_tasks/main.yml
+  tags:
+    - post_task

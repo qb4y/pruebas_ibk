@@ -1,0 +1,3 @@
+- name: Guardar la URL del instalador Nessus
+  ansible.builtin.set_fact:
+    nessus_direct_url: "{{ nessus_installer_url }}"

@@ -1,0 +1,16 @@
+---
+# vars file for post_patching_validation
+
+exec_message: ''
+post_patching_validation: true
+continue_execution: true
+hop_detected: 0
+affected_host: "{{ inventory_hostname }}"
+jh_user: "{{ hostvars[affected_host]['jh_user'] }}"
+jh_ssh_private_key_file:
+  "{{ hostvars[affected_host]['jh_ssh_private_key_file'] }}"
+jh_ssh_extra_args: "{{ hostvars[affected_host]['jh_ssh_extra_args'] }}"
+readme_url:
+  "https://github.kyndryl.net/Continuous-Engineering/ansible_collection_patching_unix/blob/master/README.md"
+sender: "(Ansible Robot) ansible-robot@kyndryl.com"
+post_patching_standalone_mode: false

@@ -1,0 +1,15 @@
+---
+galaxy_info:
+  author: Shushank Goswami
+  role_name: oracle_linux_patching
+  description: Role to patch Oracle Linux servers.
+  company: Kyndryl
+  license: Kyndryl Intellectual Property
+  min_ansible_version: '2.9.10'
+  platforms:
+    - name: EL
+      versions:
+        - all
+  galaxy_tags:
+    - patching
+dependencies: []

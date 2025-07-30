@@ -1,0 +1,42 @@
+---
+# ========== METADATOS DEL ROL AWX_REGISTER ==========
+galaxy_info:
+  role_name: awx_register
+  author: joska
+  description: >
+    Rol para registrar servidores automáticamente en AWX/Tower.
+    Carga credenciales desde Vault, obtiene facts del sistema y registra el host en AWX.
+  company: Kyndryl
+  license: Kyndryl Intellectual Property 
+  min_ansible_version: "2.12"
+  
+  platforms:
+    - name: EL
+      versions:
+        - "7"
+        - "8"
+        - "9"
+    - name: Ubuntu
+      versions:
+        - "18.04"
+        - "20.04" 
+        - "22.04"
+    - name: Windows
+      versions:
+        - "2012R2"
+        - "2016"
+        - "2019"
+        - "2022"
+
+  galaxy_tags:
+    - awx
+    - tower
+    - registration
+    - inventory
+    - automation
+    - server
+    - host
+
+# ========== DEPENDENCIAS ==========
+dependencies:
+  - name: vault_core

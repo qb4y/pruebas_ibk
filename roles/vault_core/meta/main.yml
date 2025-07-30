@@ -1,0 +1,35 @@
+---
+galaxy_info:
+  role_name: vault_core
+  author: Paulo Huaman
+  description: >
+    Rol base para la consulta de secretos en HashiCorp Vault mediante API REST.
+    Permite obtener credenciales, validar respuestas y generar trazabilidad
+    de accesos sin exponer información sensible. Compatible con entornos Linux y AWX.
+
+  company: Kyndryl
+  license: Kyndryl Intellectual Property
+  min_ansible_version: "2.12"
+
+  platforms:
+    - name: EL
+      versions:
+        - 7
+        - 8
+        - 9
+    - name: Debian
+      versions:
+        - 10
+        - 11
+
+  galaxy_tags:
+    - vault
+    - security
+    - secrets
+    - credentials
+    - automation
+    - hashicorp
+    - api
+    - traceability
+    - linux
+    - core

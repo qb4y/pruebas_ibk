@@ -1,0 +1,238 @@
+---
+# ============================================================================
+# Configure WSUS Client Role - Enhanced for Error 0x80072EE2 Resolution
+# ============================================================================
+# Configures Windows Update registry settings and resolves connectivity issues
+# Author: Kyndryl Infrastructure Management
+# Version: 2025.1
+# ============================================================================
+
+- name: Validate WSUS server configuration
+  fail:
+    msg: "WSUS server not defined or invalid"
+  when: wsus_server is not defined or wsus_server | length == 0
+
+- name: Test WSUS server connectivity on multiple ports
+  ansible.windows.win_shell: |
+    $wsusServer = "{{ wsus_server }}"
+    $ports = @(8530, 8531)  # HTTP and HTTPS ports
+    $workingUrl = $null
+    $protocol = "http"
+    
+    foreach ($port in $ports) {
+      $testUrl = "http://$wsusServer`:$port"
+      try {
+        $response = Invoke-WebRequest -Uri $testUrl -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop
+        Write-Output "SUCCESS: $testUrl responds with status $($response.StatusCode)"
+        $workingUrl = $testUrl
+        break
+      } catch {
+        Write-Output "FAILED: $testUrl - $($_.Exception.Message)"
+        if ($port -eq 8531) {
+          $testUrl = "https://$wsusServer`:$port"
+          try {
+            $response = Invoke-WebRequest -Uri $testUrl -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop
+            Write-Output "SUCCESS: $testUrl responds with status $($response.StatusCode)"
+            $workingUrl = $testUrl
+            $protocol = "https"
+            break
+          } catch {
+            Write-Output "FAILED: $testUrl - $($_.Exception.Message)"
+          }
+        }
+      }
+    }
+    
+    if ($workingUrl) {
+      Write-Output "DETECTED_URL:$workingUrl"
+      Write-Output "DETECTED_PROTOCOL:$protocol"
+    } else {
+      Write-Output "ERROR: No working WSUS URL found"
+      exit 1
+    }
+  register: wsus_connectivity
+  ignore_errors: true
+
+- name: Set WSUS URL based on connectivity test
+  set_fact:
+    wsus_url: "{{ wsus_connectivity.stdout_lines | select('match', '^DETECTED_URL:.*') | first | regex_replace('^DETECTED_URL:', '') }}"
+    wsus_protocol: "{{ wsus_connectivity.stdout_lines | select('match', '^DETECTED_PROTOCOL:.*') | first | regex_replace('^DETECTED_PROTOCOL:', '') }}"
+  when: 
+    - wsus_connectivity is succeeded
+    - wsus_connectivity.stdout_lines | select('match', '^DETECTED_URL:.*') | list | length > 0
+
+- name: Fallback to default HTTP URL if connectivity test failed
+  set_fact:
+    wsus_url: "http://{{ wsus_server }}:8530"
+    wsus_protocol: "http"
+  when: wsus_url is not defined
+
+- name: Display WSUS connectivity status
+  debug:
+    msg: 
+      - "WSUS Server: {{ wsus_server }}"
+      - "Working URL: {{ wsus_url }}"
+      - "Protocol: {{ wsus_protocol }}"
+      - "Connectivity: {{ 'OK' if wsus_connectivity is succeeded else 'FAILED' }}"
+
+- name: Stop Windows Update service
+  ansible.windows.win_service:
+    name: wuauserv
+    state: stopped
+  register: wu_service_stopped
+
+- name: Stop Background Intelligence Transfer Service
+  ansible.windows.win_service:
+    name: bits
+    state: stopped
+  ignore_errors: true
+
+- name: Clear Windows Update cache and resolve 0x80072EE2 error
+  ansible.windows.win_shell: |
+    # Clear Windows Update cache
+    Remove-Item -Path "C:\Windows\SoftwareDistribution\*" -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path "C:\Windows\System32\catroot2\*" -Recurse -Force -ErrorAction SilentlyContinue
+    
+    # Reset Windows Update components
+    regsvr32.exe /s atl.dll
+    regsvr32.exe /s urlmon.dll
+    regsvr32.exe /s mshtml.dll
+    regsvr32.exe /s shdocvw.dll
+    regsvr32.exe /s browseui.dll
+    regsvr32.exe /s jscript.dll
+    regsvr32.exe /s vbscript.dll
+    regsvr32.exe /s scrrun.dll
+    regsvr32.exe /s msxml.dll
+    regsvr32.exe /s msxml3.dll
+    regsvr32.exe /s msxml6.dll
+    regsvr32.exe /s actxprxy.dll
+    regsvr32.exe /s softpub.dll
+    regsvr32.exe /s wintrust.dll
+    regsvr32.exe /s dssenh.dll
+    regsvr32.exe /s rsaenh.dll
+    regsvr32.exe /s gpkcsp.dll
+    regsvr32.exe /s sccbase.dll
+    regsvr32.exe /s slbcsp.dll
+    regsvr32.exe /s cryptdlg.dll
+    regsvr32.exe /s oleaut32.dll
+    regsvr32.exe /s ole32.dll
+    regsvr32.exe /s shell32.dll
+    regsvr32.exe /s initpki.dll
+    regsvr32.exe /s wuapi.dll
+    regsvr32.exe /s wuaueng.dll
+    regsvr32.exe /s wuaueng1.dll
+    regsvr32.exe /s wucltui.dll
+    regsvr32.exe /s wups.dll
+    regsvr32.exe /s wups2.dll
+    regsvr32.exe /s wuweb.dll
+    regsvr32.exe /s qmgr.dll
+    regsvr32.exe /s qmgrprxy.dll
+    regsvr32.exe /s wucltux.dll
+    regsvr32.exe /s muweb.dll
+    regsvr32.exe /s wuwebv.dll
+    
+    Write-Output "Windows Update cache cleared and components reset"
+  register: cache_cleanup_result
+
+- name: Configure Windows Update registry settings
+  ansible.windows.win_regedit:
+    path: "{{ item.path }}"
+    name: "{{ item.name }}"
+    type: "{{ item.type }}"
+    data: "{{ item.data }}"
+  loop:
+    - path: 'HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU'
+      type: dword
+      name: AUOptions
+      data: 2
+    - path: 'HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU'
+      type: dword
+      name: NoAutoUpdate
+      data: 0
+    - path: 'HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU'
+      type: dword
+      name: ScheduledInstallDay
+      data: 0
+    - path: 'HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU'
+      type: dword
+      name: ScheduledInstallTime
+      data: 3
+    - path: 'HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate'
+      type: string
+      name: WUServer
+      data: "{{ wsus_url }}"
+    - path: 'HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate'
+      type: string
+      name: WUStatusServer
+      data: "{{ wsus_url }}"
+    - path: 'HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU'
+      type: dword
+      name: UseWUServer
+      data: 1
+    - path: 'HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU'
+      type: dword
+      name: DetectionFrequencyEnabled
+      data: 1
+    - path: 'HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU'
+      type: dword
+      name: DetectionFrequency
+      data: 1
+    - path: 'HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate'
+      type: dword
+      name: ElevateNonAdmins
+      data: 0
+    - path: 'HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU'
+      type: dword
+      name: NoAUShutdownOption
+      data: 1
+  no_log: true
+
+- name: Start Windows Update service
+  ansible.windows.win_service:
+    name: wuauserv
+    state: started
+  register: wu_service_started
+
+- name: Start Background Intelligence Transfer Service
+  ansible.windows.win_service:
+    name: bits
+    state: started
+  ignore_errors: true
+
+- name: Wait for services to stabilize
+  pause:
+    seconds: 10
+
+- name: Force WSUS detection and registration
+  ansible.windows.win_shell: |
+    # Force immediate detection and registration
+    wuauclt.exe /resetauthorization
+    wuauclt.exe /detectnow
+    wuauclt.exe /reportnow
+    
+    # Alternative method using PowerShell
+    $UpdateSession = New-Object -ComObject Microsoft.Update.Session
+    $UpdateSearcher = $UpdateSession.CreateUpdateSearcher()
+    $UpdateSearcher.Online = $false
+    Write-Output "WSUS client configured and detection initiated"
+  register: wsus_detection_result
+  ignore_errors: true
+
+- name: Display WSUS detection result
+  debug:
+    msg: "WSUS detection completed: {{ wsus_detection_result.stdout_lines | default(['No output']) | join(' ') }}"
+
+- name: Verify WSUS configuration
+  ansible.windows.win_shell: |
+    $wsusServer = Get-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate" -Name "WUServer" -ErrorAction SilentlyContinue
+    $wsusStatusServer = Get-ItemProperty -Path "HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate" -Name "WUStatusServer" -ErrorAction SilentlyContinue
+    
+    Write-Output "WSUS Server: $($wsusServer.WUServer)"
+    Write-Output "WSUS Status Server: $($wsusStatusServer.WUStatusServer)"
+    Write-Output "Configuration completed successfully"
+  register: wsus_config_verify
+  ignore_errors: true
+
+- name: Display final configuration status
+  debug:
+    msg: "{{ wsus_config_verify.stdout_lines | default(['Configuration verification failed']) }}"

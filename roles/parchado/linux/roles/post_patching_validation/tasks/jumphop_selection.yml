@@ -1,0 +1,31 @@
+---
+
+- name: Get jh_ssh_private_key_files
+  ansible.builtin.set_fact:
+    j4hop: "{{ lookup('env', 'JH4_SSH_PRIVATE_KEY') }}"
+    j3hop: "{{ lookup('env', 'JH3_SSH_PRIVATE_KEY') }}"
+    j2hop: "{{ lookup('env', 'JH2_SSH_PRIVATE_KEY') }}"
+    j1hop: "{{ lookup('env', 'JH1_SSH_PRIVATE_KEY') }}"
+  no_log: true
+
+- name: Set jh_* values for 4hop
+  when: j4hop | length > 0
+  ansible.builtin.include_vars: 4hop.yml
+
+- name: Set jh_* values for 3hop
+  when:
+    - j3hop | length > 0
+    - hop_detected == 0
+  ansible.builtin.include_vars: 3hop.yml
+
+- name: Set jh_* values for 2hop
+  when:
+    - j2hop | length > 0
+    - hop_detected == 0
+  ansible.builtin.include_vars: 2hop.yml
+
+- name: Set jh_* values for 1hop
+  when:
+    - j1hop | length > 0
+    - hop_detected == 0
+  ansible.builtin.include_vars: 1hop.yml

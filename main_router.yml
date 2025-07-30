@@ -1,0 +1,99 @@
+---
+- name: 🚀 Aprovisionamiento de VM
+  hosts: localhost
+  gather_facts: false
+  become: false
+  vars:
+    valid_actions:
+      - validate_capacity
+      - deploy_nessus
+      - general_task
+      - registry_vm
+      - crowstrike_agent
+      - minio_ansible_automation
+      - vault_core
+      - provisioning
+      - crear_usuarios
+      - install_uim_agent
+      - user_management
+      - awx_register
+      - parchado
+
+  pre_tasks:
+    - name: 🔍 Validar que se haya definido una acción
+      ansible.builtin.fail:
+        msg: "Debes definir una variable 'action'. Ejemplo: -e action=deploy_nessus"
+      when: action is not defined
+
+    - name: ✅ Validar que la acción es válida
+      ansible.builtin.fail:
+        msg: "Acción '{{ action }}' no es válida. Opciones válidas: {{ valid_actions | join(', ') }}"
+      when: action not in valid_actions
+
+  tasks:
+    - name: 🏗️ Ejecutar Aprovisionamiento
+      ansible.builtin.include_role:
+        name: aprovisionamiento_instancias
+      register: r_provisioning
+      when: action == 'provisioning'
+
+    - name: 📤 Exportar variables de VM para el siguiente play
+      ansible.builtin.set_stats:
+        data:
+          vm_hostname: "{{ r_provisioning.instance.vm_hostname }}"
+          vm_ip_address: "{{ r_provisioning.instance.vm_nics[0].vm_ip_address }}"
+          vm_ostype: "{{ r_provisioning.instance.vm_ostype }}"
+          vm_nics: "{{ r_provisioning.instance.vm_nics }}"
+      when: action == 'provisioning'
+
+    - name: ➕ Registrar VM como host dinámico
+      add_host:
+        name: "{{ r_provisioning.instance.vm_hostname }}"
+        ansible_host: "{{ r_provisioning.instance.vm_nics[0].vm_ip_address }}"
+        groups: dynamic_vm
+        ansible_user: "{{ 'root' if r_provisioning.instance.vm_ostype == 'linux' else 'operator' }}"
+        ansible_password: "{{ 'i20unix06b' if r_provisioning.instance.vm_ostype == 'linux' else 'Bugtraq12' }}"
+        ansible_connection: "{{ 'ssh' if r_provisioning.instance.vm_ostype == 'linux' else 'winrm' }}"
+        ansible_port: "{{ 22 if r_provisioning.instance.vm_ostype == 'linux' else 5985 }}"
+      when: action == 'provisioning'
+
+- name: 🧩 Ejecución de roles sobre la VM aprovisionada
+  hosts: dynamic_vm
+  gather_facts: true
+  become: false
+
+  tasks:
+    - name: ⚙️ General Tasks
+      ansible.builtin.include_role:
+        name: general_task
+      when: action == 'general_task'
+
+    - name: 🛡️ Deploy Nessus
+      ansible.builtin.include_role:
+        name: deploy_nessus
+      when: action == 'deploy_nessus'
+
+    - name: 🐦 Instalar Crowdstrike
+      ansible.builtin.include_role:
+        name: crowdstrike
+      when: action == 'crowstrike_agent'
+
+    - name: 👥 Crear usuarios
+      ansible.builtin.include_role:
+        name: crear_usuarios
+      when: action == 'crear_usuarios'
+
+    - name: 📦 Instalar UIM
+      ansible.builtin.include_role:
+        name: install_uim_agent
+      when: action == 'install_uim_agent'
+
+    - name: 🧾 Registrar en RCP
+      ansible.builtin.include_role:
+        name: rcp_register
+      when: action == 'rcp_register'
+
+    - name: 🧰 Aplicar parchado
+      ansible.builtin.include_role:
+        name: parchado
+      when: action == 'parchado'

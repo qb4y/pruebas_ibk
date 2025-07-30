@@ -1,0 +1,10 @@
+- name: Verificar estado de SELinux (fallback)
+  ansible.builtin.command: getenforce
+  register: selinux_status
+  changed_when: false
+  failed_when: false
+
+- name: Advertir si SELinux está en modo Enforcing
+  ansible.builtin.debug:
+    msg: "⚠️ SELinux está en modo Enforcing. Considera cambiarlo a Permissive."
+  when: selinux_status.stdout | trim | lower == "enforcing"

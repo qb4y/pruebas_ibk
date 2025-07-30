@@ -1,0 +1,307 @@
+---
+
+- name: Run pre patching steps
+  ansible.builtin.include_tasks: pre_patching_steps.yml
+
+- name: Uninstall locking efix
+  when:
+    - remove_locking_efixes
+    - fs_space_validation
+    - continue_execution
+  block:
+
+    - name: Check if any efix is locking any filesets  # noqa risky-shell-pipe
+      ansible.builtin.shell: |
+        emgr -P | tail -n +4 | awk '{print $3}' | sort -u
+      register: locking_efix
+      changed_when: false
+
+    - name: Uninstall locking efix
+      ansible.builtin.command: /usr/sbin/emgr -r -L {{ item }}
+      loop: "{{ locking_efix.stdout_lines }}"
+      when: locking_efix.stdout
+      changed_when: true
+
+    - name: Locking efix uninstalled successfully
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Below locking efix have been uninstalled successfully:\n\n
+          {{ locking_efix.stdout_lines }}\n\n"
+      when: locking_efix.stdout
+
+  rescue:
+
+    - name:
+        Return code generation in case of
+        uninstall locking efix command failure
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5024
+        rc_message:
+          "Uninstall locking efix command has failed.
+          Further investigation is required by the developer"
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Uninstall locking efix command has failed.\n\n
+          Aborting the patching process.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Uninstall locking efix command has failed"
+      when: fail_on_error | bool
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Make sure mount point exists  # noqa risky-file-permissions
+  ansible.builtin.file:
+    path: "{{ nfs_mountpoint }}"
+    state: directory
+  when:
+    - fs_space_validation
+    - continue_execution
+    - nfs_mountpoint | length
+
+- name: Convert string variables to list
+  ansible.builtin.set_fact:
+    nfs_path_list: "{{ nfs_path.split(',') }}"
+    patching_filesets_location_list:
+      "{{ patching_filesets_location.split(',') }}"
+  when:
+    - nfs_path | length > 0
+    - nfs_path | type_debug != 'list'
+
+- name: Set required variables
+  ansible.builtin.set_fact:
+    nfs_path_list: "{{ nfs_path }}"
+    patching_filesets_location_list: "{{ patching_filesets_location }}"
+  when:
+    - nfs_path | length > 0
+    - nfs_path | type_debug == 'list'
+
+- name: Update software through multiple filesets at remote NFS location
+  ansible.builtin.include_tasks: software_patching_loop.yml
+  loop: "{{ nfs_path_list | zip(patching_filesets_location_list) | list }}"
+  when:
+    - fs_space_validation
+    - continue_execution
+    - nfs_path | length > 0
+
+- name: Update software through a local fileset
+  when:
+    - fs_space_validation
+    - continue_execution
+    - not nfs_path | length > 0
+  block:
+
+    - name: Update software to the latest level on media
+      ansible.builtin.command:
+        install_all_updates -Yd {{ patching_filesets_location }}
+      changed_when: true
+
+    - name: Software update is successful
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Software has been updated successfully.\n\n"
+
+    - name: Set returncode
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_success: true
+
+  rescue:
+
+    - name:
+        Return code generation in case of
+        software update failure
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5039
+        rc_message:
+          "Software update has failed.
+          Further investigation is required by the developer."
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Software update command has failed.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Software update has failed"
+      when: fail_on_error | bool
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Restart SSH service
+  when:
+    - restart_ssh
+    - continue_execution
+  block:
+
+    - name: Restart SSH service
+      ansible.builtin.service:
+        name: sshd
+        state: restarted
+
+    - name: SSH service has been restarted
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          SSH service has been restarted.\n\n"
+
+  rescue:
+
+    - name:
+        Return code generation in case SSH service restart fails
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5041
+        rc_message:
+          "SSH service restart has failed.
+          Further investigation is required by the developer"
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          SSH service restart has failed.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "SSH service restart has failed"
+      when: fail_on_error | bool
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Apply efixes
+  when:
+    - efix_filesets_location | length
+    - fs_space_validation
+    - continue_execution
+  block:
+
+    - name: Fetch list of efixes to be applied
+      ansible.builtin.find:
+        paths: "{{ efix_filesets_location }}"
+        patterns: "*epkg.Z"
+      register: efix_list
+      changed_when: false
+
+    - name: Create a list of efixes
+      ansible.builtin.set_fact:
+        efix_list:
+          "{{ efix_list.files | map(attribute='path') | list }}"
+
+    - name: Apply efixes
+      ansible.builtin.command:
+        emgr -e {{ item }}
+      loop: "{{ efix_list }}"
+      changed_when: true
+      when: efix_list | length > 0
+
+    - name: Applying efixes successful
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Successfully applied below efixes:\n\n
+          {{ efix_list }}\n\n"
+      when: efix_list | length > 0
+
+  rescue:
+
+    - name:
+        Return code generation in case of
+        applying efixes fails
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5040
+        rc_message:
+          "Applying efixes has failed.
+          Further investigation is required by the developer"
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Applying efixes has failed.\n\n
+          Aborting the patching process.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Applying efixes has failed"
+      when: fail_on_error | bool
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Run post patching steps
+  ansible.builtin.include_tasks: post_patching_steps.yml
+  when:
+    - fs_space_validation
+    - continue_execution

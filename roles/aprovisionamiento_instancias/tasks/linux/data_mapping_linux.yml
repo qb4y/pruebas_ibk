@@ -1,0 +1,63 @@
+---
+## Data Mapping específico para Linux
+## Función: Configuración profesional según documentación VMware para Linux
+
+- name: "Mapear networks para Linux (configuración VMware completa según documentación)"
+  ansible.builtin.set_fact:
+    networks: "{{ networks | default([]) + [{
+                  'name': nwitem['vm_port_group'],
+                  'type': 'static',                                    
+                  'ip': nwitem['vm_ip_address'], 
+                  'netmask': nwitem['vm_netmask'],
+                  'gateway': nwitem['vm_gateway'],
+                  'dns_servers': dns_servers,                          
+                  'device_type': nwitem['device_type'] | default('vmxnet3'),  
+                  'connected': true,                                  
+                  'start_connected': true,                            
+                  'wake_on_lan': false                                 
+                }]
+              }}"
+  loop: "{{ vm_nics }}"
+  loop_control:
+    loop_var: nwitem
+  tags: [data_mapping_linux, networks]
+
+- name: "Mapear customization Linux (PARÁMETROS VÁLIDOS según documentación vmware_guest)"
+  ansible.builtin.set_fact:
+    customization:
+      # HOSTNAME LINUX: IGUAL QUE WINDOWS (sin underscores, sin guiones)
+      hostname: "{{ vm_hostname | regex_replace('_', '') }}"  # opaastest02
+      
+      # DOMINIO LINUX: usando variable de linux.yml
+      domain: "{{ domain }}"  # Resultado: opaastest02.grupoib.local
+      
+      # TIMEZONE LINUX: usando variable de linux.yml
+      timezone: "{{ timezone_linux }}"
+      
+      # HARDWARE CLOCK: usando variable de linux.yml
+      hwclockUTC: "{{ hwclock_utc }}"
+      
+      # DNS SUFFIX: singular, NO dns_suffix_list (según documentación)
+      dns_suffix: "{{ domain }}"
+      
+      # DNS SERVERS: para customization Linux
+      dns_servers: "{{ dns_servers }}"
+  tags: [data_mapping_linux, customization]
+
+- name: "Mapear hardware para Linux"
+  ansible.builtin.set_fact:
+    hardware:
+      memory_mb: "{{ vm_memory }}"
+      num_cpus: "{{ vm_cpu }}"
+      scsi: "paravirtual"
+      boot_firmware: "bios"
+  tags: [data_mapping_linux, hardware]
+
+- name: "Establecer credenciales Linux específicas"
+  ansible.builtin.set_fact:
+    linux_credentials:
+      admin_user: "root"                      # Usuario root Linux
+      admin_password: "i20unix06b"            # Password proporcionado
+      ssh_port: 22                           # Puerto SSH estándar
+  no_log: true
+  tags: [data_mapping_linux, credentials] 

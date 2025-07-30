@@ -1,0 +1,96 @@
+---
+- name: Set exec_message
+  ansible.builtin.set_fact:
+    exec_message:
+      "{{ exec_message }}
+      Patching started.\n\n
+      Host OS and version details: {{ ansible_distribution }}
+      {{ ansible_distribution_version }}.\n\n
+      patch_type: {{ patch_type }}.\n\n"
+
+- name: Add change number to exec_message
+  ansible.builtin.set_fact:
+    exec_message:
+      "{{ exec_message }}
+      Change number: {{ change_number }}.\n\n"
+  when: change_number | length > 0
+
+- name: Invalid patch_type
+  when:
+    - patch_type != "update_all"
+    - patch_type != "rcp_all"
+    - patch_type != "bugfix_all"
+    - patch_type != "security_all"
+    - patch_type is not regex("^.*(ELSA).*$")
+  block:
+
+    - name: Return code generation in case invalid patch type is provided
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "account"
+        rc_group: "misconfiguration"
+        rc_number: 6001
+        rc_message:
+          "{{ patch_type }} is an invalid patch type.
+          Please refer readme file for more details."
+        documentation: "{{ readme_url }}"
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Invalid patch_type, exiting...\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Invalid patch type provided"
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Run yum update all on host - update & upgrade
+  ansible.builtin.include_tasks: update_rcp.yml
+  when:
+    - continue_execution
+    - (patch_type == "update_all" or patch_type == "rcp_all")
+
+- name: Run yum bugfix update on host
+  ansible.builtin.include_tasks: bugfix.yml
+  when:
+    - continue_execution
+    - patch_type == "bugfix_all"
+
+- name: Run security_all on host
+  ansible.builtin.include_tasks: security.yml
+  when:
+    - continue_execution
+    - patch_type == "security_all"
+
+- name: Install specific patches
+  when:
+    - continue_execution
+    - patch_type is regex("^.*(ELSA).*$")
+  block:
+
+    - name: Create a list from input package(s)
+      ansible.builtin.set_fact:
+        patch_list: "{{ patch_type.split(',') }}"
+
+    - name: Running for patch set(s)
+      ansible.builtin.include_tasks: install_specific_patch.yml
+      loop: "{{ patch_list }}"

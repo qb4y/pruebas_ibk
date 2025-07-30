@@ -1,0 +1,108 @@
+---
+- name: Start OS services
+  when: service_restart_list | length > 0
+  block:
+
+    - name: Start OS services
+      ansible.builtin.service:
+        name: "{{ item }}"
+        state: started
+      loop: "{{ service_restart_list.split(',') }}"
+
+    - name: Update exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Below OS services have been started:\n\n
+          {{ service_restart_list }}\n\n"
+
+  rescue:
+
+    - name:
+        Return code generation in case of failure
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5061
+        rc_message:
+          "Starting OS services has failed.
+          Further investigation is required by the developer."
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Starting one of the below OS services has failed:\n\n
+          {{ service_restart_list }}.\n
+          Aborting the patching process.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "OS services start failed"
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Start application services
+  when:
+    - app_service_start_script | length > 0
+    - continue_execution
+  block:
+
+    - name: Start application services
+      ansible.builtin.script: "{{ app_service_start_script }}"
+
+    - name: Update exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Application services have been started using below script:\n\n
+          {{ app_service_start_script }}\n\n"
+
+  rescue:
+
+    - name:
+        Return code generation in case of failure
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "account"
+        rc_group: "misconfiguration"
+        rc_number: 6014
+        rc_message:
+          "Starting application services using below script has failed.
+          {{ app_service_start_script }}.
+          Make sure correct script details are passed and
+          content of the script is accurate."
+        documentation: "{{ readme_url }}"
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Starting application services using below script has failed:\n\n
+          {{ app_service_start_script }}.\n
+          Aborting the patching process.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Application services start failed"
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false

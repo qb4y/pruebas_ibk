@@ -1,0 +1,106 @@
+---
+
+- name: Update security packages
+  block:
+
+    - name: Update security packages  # noqa risky-shell-pipe
+      ansible.builtin.shell: |
+        apt list --upgradable | grep security
+        |cut -d/ -f1 | xargs apt-get install -y
+      register: apt_security_out
+      async: "{{ async_value }}"
+      poll: "{{ poll_value }}"
+      changed_when: true
+
+  rescue:
+
+    - name: Return code incase security_all patch update fails
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5011
+        rc_message:
+          "Ubuntu security_all patching failed."
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        patch_status: 'failure'
+        exec_message:
+          "{{ exec_message }}
+          Ubuntu security_all patching failed.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Ubuntu security_all patching failed"
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Patches installed successfully
+  when:
+    - apt_security_out.rc == 0
+    - '"0 upgraded, 0 newly installed, 0 to remove"
+      not in apt_security_out.stdout'
+  block:
+
+    - name: Set returncode
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_success: true
+        rc_message: "Patches successfully installed"
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        patch_status: 'success'
+        exec_message:
+          "{{ exec_message }}
+          Patching result:\n\n
+          Patches successfully installed.\n\n"
+
+- name: Nothing to do here, all packages are up to date
+  when:
+    - apt_security_out.rc == 0
+    - '"0 upgraded, 0 newly installed, 0 to remove"
+      in apt_security_out.stdout'
+  block:
+
+    - name: Set returncode
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_success: true
+        rc_message: "Nothing to do here, all packages are up to date"
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        patch_status: 'nothing_to_do'
+        exec_message:
+          "{{ exec_message }}
+          Patching result:\n\n
+          Nothing to do here, all packages are up to date.\n\n"
+
+- name: Failure - patches not installed
+  ansible.builtin.set_fact:
+    patch_status: 'failure'
+    exec_message:
+      "{{ exec_message }}
+      Patching result:\n\n
+      Patch installation FAILED, please perform manual patching.\n\n"
+  when: apt_security_out.rc != 0

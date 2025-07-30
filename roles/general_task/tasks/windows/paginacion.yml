@@ -1,0 +1,288 @@
+---
+- name: Verificar versión de Windows soportada
+  ansible.builtin.assert:
+    that:
+      - windows_version_supported | bool
+    fail_msg: "Versión de Windows no soportada: {{ ansible_distribution }}"
+    success_msg: "Versión de Windows soportada: {{ ansible_distribution }}"
+  vars:
+    windows_version_supported: "{{ (ansible_distribution | lower) in windows_config.supported_versions | lower }}"
+  tags:
+    - windows
+    - validation
+
+- name: Configurar política de ejecución de PowerShell (ignorar errores de override)
+  ansible.windows.win_shell: |
+    try {
+      $currentPolicy = Get-ExecutionPolicy -Scope LocalMachine
+      if ($currentPolicy -ne "{{ windows_config.powershell_execution_policy }}") {
+        Set-ExecutionPolicy -ExecutionPolicy {{ windows_config.powershell_execution_policy }} -Scope LocalMachine -Force -ErrorAction SilentlyContinue
+      }
+      $effectivePolicy = Get-ExecutionPolicy
+      Write-Output "Política efectiva: $effectivePolicy"
+    } catch {
+      Write-Output "Política configurada por GPO, usando política efectiva"
+    }
+  register: execution_policy_result
+  failed_when: false
+  changed_when: false
+  tags:
+    - windows
+    - powershell
+
+- name: Obtener información detallada del sistema Windows
+  ansible.windows.win_shell: |
+    $computerSystem = Get-CimInstance -ClassName Win32_ComputerSystem
+    $operatingSystem = Get-CimInstance -ClassName Win32_OperatingSystem
+    $pageFileSettings = Get-CimInstance -ClassName Win32_PageFileSetting
+
+    $info = @{
+      hostname = $env:COMPUTERNAME
+      total_ram_mb = [math]::Round($computerSystem.TotalPhysicalMemory / 1MB)
+      available_ram_mb = [math]::Round($operatingSystem.FreePhysicalMemory / 1KB)
+      os_name = $operatingSystem.Caption
+      os_version = $operatingSystem.Version
+      os_build = $operatingSystem.BuildNumber
+      current_pagefile = $pageFileSettings | Select-Object Name, InitialSize, MaximumSize
+      auto_managed = $computerSystem.AutomaticManagedPagefile
+      page_file_count = $pageFileSettings.Count
+      system_drive = $env:SystemDrive
+    }
+
+    $info | ConvertTo-Json -Depth 3
+  register: windows_system_info
+  tags:
+    - windows
+    - memory_info
+
+- name: Procesar información del sistema
+  ansible.builtin.set_fact:
+    system_info: "{{ windows_system_info.stdout | from_json }}"
+  tags:
+    - windows
+    - memory_info
+
+- name: Establecer configuración de paginación basada en RAM
+  ansible.builtin.set_fact:
+    current_memory_mb: "{{ system_info.total_ram_mb | int }}"
+    pagefile_config: "{{ paginacion_config[system_info.total_ram_mb | string] | default(paginacion_config['8192']) }}"
+  tags:
+    - windows
+    - config_setup
+
+- name: Mostrar configuración actual y propuesta
+  ansible.builtin.debug:
+    var: configuracion_paginacion
+  vars:
+    configuracion_paginacion:
+      sistema:
+        hostname: "{{ system_info.hostname }}"
+        sistema_operativo: "{{ system_info.os_name }}"
+        version: "{{ system_info.os_version }}"
+        build: "{{ system_info.os_build }}"
+        unidad_sistema: "{{ system_info.system_drive }}"
+      memoria:
+        ram_total_mb: "{{ current_memory_mb }}"
+        ram_disponible_mb: "{{ system_info.available_ram_mb }}"
+      configuracion_actual:
+        gestion_automatica: "{{ system_info.auto_managed }}"
+        archivos_configurados: "{{ system_info.page_file_count | default(0) }}"
+      configuracion_propuesta:
+        tamaño_inicial_mb: "{{ pagefile_config.initial_size }}"
+        tamaño_maximo_mb: "{{ pagefile_config.maximum_size }}"
+        unidad: "{{ paginacion_default.drive }}"
+        gestion_automatica: "{{ paginacion_default.automatic_managed }}"
+  tags:
+    - windows
+    - debug
+
+- name: Verificar configuración actual del archivo de paginación
+  community.windows.win_pagefile:
+    state: query
+  register: current_pagefile_config
+  tags:
+    - windows
+    - validation
+
+- name: Mostrar configuración actual detallada
+  ansible.builtin.debug:
+    var: configuracion_actual_detallada
+  vars:
+    configuracion_actual_detallada:
+      archivos_paginacion: "{{ current_pagefile_config.pagefiles | map(attribute='name') | list }}"
+      detalles: >-
+        {{ current_pagefile_config.pagefiles | map('combine', {'tamaño_inicial_mb': item.initial_size, 'tamaño_maximo_mb': item.maximum_size, 'tamaño_actual_mb': item.size | default('N/A')}) | list }}
+  tags:
+    - windows
+    - debug
+
+- name: Deshabilitar gestión automática de paginación
+  ansible.windows.win_shell: |
+    $computerSystem = Get-CimInstance -ClassName Win32_ComputerSystem
+    if ($computerSystem.AutomaticManagedPagefile -eq $true) {
+      $computerSystem.AutomaticManagedPagefile = $false
+      $computerSystem | Set-CimInstance
+      Write-Output "Gestión automática deshabilitada exitosamente"
+    } else {
+      Write-Output "Gestión automática ya estaba deshabilitada"
+    }
+  register: auto_mgmt_result
+  tags:
+    - windows
+    - configure_auto
+
+- name: Eliminar archivos de paginación existentes
+  ansible.windows.win_shell: |
+    $pageFileSettings = Get-CimInstance -ClassName Win32_PageFileSetting
+    if ($pageFileSettings) {
+      foreach ($pf in $pageFileSettings) {
+        $pf | Remove-CimInstance
+        Write-Output "Eliminado archivo de paginación: $($pf.Name)"
+      }
+    } else {
+      Write-Output "No hay archivos de paginación existentes"
+    }
+  register: cleanup_result
+  tags:
+    - windows
+    - cleanup
+
+- name: Configurar archivo de paginación personalizado
+  community.windows.win_pagefile:
+    drive: "{{ paginacion_default.drive }}"
+    initial_size: "{{ pagefile_config.initial_size }}"
+    maximum_size: "{{ pagefile_config.maximum_size }}"
+    state: present
+    override: true
+    automatic_managed_pagefiles: "{{ paginacion_default.automatic_managed }}"
+  register: pagefile_result
+  tags:
+    - windows
+    - configure_pagefile
+
+- name: Configurar mediante registro (método alternativo)
+  ansible.windows.win_regedit:
+    path: "{{ windows_config.registry_path }}"
+    name: PagingFiles
+    data: "{{ windows_config.pagefile_path }} {{ pagefile_config.initial_size }} {{ pagefile_config.maximum_size }}"
+    type: multistring
+  when: usar_registro_alternativo | default(false) | bool
+  register: registry_result
+  tags:
+    - windows
+    - registry_config
+
+- name: Mostrar resultado de la configuración
+  ansible.builtin.debug:
+    var: resultado_configuracion
+  vars:
+    resultado_configuracion:
+      configuracion_completada: true
+      resultados:
+        gestion_automatica: "{{ auto_mgmt_result.stdout | trim }}"
+        limpieza_archivos_anteriores: "{{ cleanup_result.stdout | trim }}"
+        archivo_paginacion: "{{ 'Configurado exitosamente' if pagefile_result.changed else 'Sin cambios necesarios' }}"
+        registro_alternativo: "{{ 'Aplicado' if (registry_result.changed | default(false)) else 'No usado' }}"
+      reinicio_requerido: "{{ pagefile_result.changed or forzar_reinicio }}"
+      configuracion_aplicada:
+        tamaño_inicial_mb: "{{ pagefile_config.initial_size }}"
+        tamaño_maximo_mb: "{{ pagefile_config.maximum_size }}"
+        ubicacion: "{{ paginacion_default.drive }}:\\pagefile.sys"
+  tags:
+    - windows
+    - debug
+
+- name: Reiniciar servidor Windows para aplicar cambios
+  ansible.windows.win_reboot:
+    reboot_timeout: "{{ paginacion_default.reboot_timeout }}"
+    msg: "Reiniciando para aplicar configuración de paginación - Ansible {{ ansible_date_time.iso8601 }}"
+    pre_reboot_delay: 10
+    post_reboot_delay: 60
+    test_command: 'powershell.exe -Command "Get-Service"'
+  when:
+    - (pagefile_result.changed or forzar_reinicio) | bool
+    - paginacion_default.reboot_required | bool
+  register: reboot_result
+  tags:
+    - windows
+    - reboot
+
+- name: Verificar configuración final después del reinicio
+  community.windows.win_pagefile:
+    state: query
+  register: final_pagefile_config
+  when: validar_configuracion | bool
+  tags:
+    - windows
+    - final_validation
+
+- name: Obtener información final del sistema
+  ansible.windows.win_shell: |
+    $computerSystem = Get-CimInstance -ClassName Win32_ComputerSystem
+    $pageFiles = Get-CimInstance -ClassName Win32_PageFileSetting
+    $operatingSystem = Get-CimInstance -ClassName Win32_OperatingSystem
+
+    $finalInfo = @{
+      hostname = $env:COMPUTERNAME
+      timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+      auto_managed = $computerSystem.AutomaticManagedPagefile
+      pagefiles = $pageFiles | Select-Object Name, InitialSize, MaximumSize
+      total_ram_mb = [math]::Round($computerSystem.TotalPhysicalMemory / 1MB)
+      available_ram_mb = [math]::Round($operatingSystem.FreePhysicalMemory / 1KB)
+      page_file_usage = (Get-Counter -Counter "\Paging File(_Total)\% Usage").CounterSamples.CookedValue
+    }
+
+    $finalInfo | ConvertTo-Json -Depth 3
+  register: final_system_info
+  when: validar_configuracion | bool
+  tags:
+    - windows
+    - final_validation
+
+- name: Mostrar configuración final
+  ansible.builtin.debug:
+    var: configuracion_final_aplicada
+  vars:
+    configuracion_final_aplicada:
+      servidor: "{{ (final_system_info.stdout | from_json).hostname }}"
+      timestamp: "{{ (final_system_info.stdout | from_json).timestamp }}"
+      memoria:
+        ram_total_mb: "{{ (final_system_info.stdout | from_json).total_ram_mb }}"
+        ram_disponible_mb: "{{ (final_system_info.stdout | from_json).available_ram_mb }}"
+        uso_pagefile_porcentaje: "{{ (final_system_info.stdout | from_json).page_file_usage | round(2) }}"
+      configuracion:
+        gestion_automatica: "{{ (final_system_info.stdout | from_json).auto_managed }}"
+        configuracion_exitosa: true
+      detalles_paginacion: "{{ (final_system_info.stdout | from_json).pagefiles }}"
+  when:
+    - validar_configuracion | bool
+    - final_system_info is defined
+  tags:
+    - windows
+    - final_validation
+
+- name: Crear artefacto de configuración aplicada
+  ansible.builtin.set_fact:
+    paginacion_aplicada:
+      timestamp: "{{ ansible_date_time.iso8601 }}"
+      servidor: "{{ ansible_hostname }}"
+      usuario_conexion: "{{ ansible_user }}"
+      transporte_winrm: "{{ ansible_winrm_transport }}"
+      sistema_operativo: "{{ system_info.os_name }}"
+      version_os: "{{ system_info.os_version }}"
+      build_os: "{{ system_info.os_build }}"
+      memoria_total: "{{ current_memory_mb }} MB"
+      memoria_disponible: "{{ system_info.available_ram_mb }} MB"
+      configuracion_aplicada:
+        tamaño_inicial: "{{ pagefile_config.initial_size }} MB"
+        tamaño_maximo: "{{ pagefile_config.maximum_size }} MB"
+        unidad: "{{ paginacion_default.drive }}"
+        ruta_completa: "{{ windows_config.pagefile_path }}"
+        gestion_automatica: "{{ paginacion_default.automatic_managed }}"
+      cambios_realizados: "{{ pagefile_result.changed }}"
+      reinicio_ejecutado: "{{ reboot_result.changed | default(false) }}"
+      validacion_final: "{{ final_pagefile_config is defined }}"
+      metodo_configuracion: "{{ 'Registry' if usar_registro_alternativo else 'WMI' }}"
+  tags:
+    - windows
+    - artifacts

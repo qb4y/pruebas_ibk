@@ -1,0 +1,626 @@
+---
+
+- name: Config backup
+  block:
+
+    - name: Define output file name
+      ansible.builtin.set_fact:
+        post_patching_output_file:
+          "{{ inventory_hostname | regex_replace('^(.*?)\\..*$', '\\1') | lower
+          }}_Post_Patch_config_{{ tower_job_id }}_{{ ansible_date_time.day +
+          ansible_date_time.month + ansible_date_time.year }}.txt"
+
+    - name:
+        Capture the system diagnostic data for
+        RHEL/CentOS  # noqa risky-shell-pipe
+      ansible.builtin.shell: |
+        printf "Filesystem usage:\n\n" > /var/log/{{
+        post_patching_output_file }};
+        /bin/df -h >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nIP configuration:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        /sbin/ip a >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nIP configuration details:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        /sbin/ifconfig -a >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nRouting, gateway etc. information:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        /sbin/route -n >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nAvailable partitions (SAN and Local):\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        /sbin/fdisk -l >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nKenel, architecture etc. details:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        /bin/uname -a >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nServer release version:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        cat /etc/*release >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nPlatform - physical or virtual:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        dmidecode -s system-manufacturer >> /var/log/{{
+        post_patching_output_file }};
+        dmidecode -s system-product-name >> /var/log/{{
+        post_patching_output_file }};
+        printf "\n\nfstab details:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        cat /etc/fstab >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nUptime information:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        uptime >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nMemory details:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        /bin/free -mt >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nNTP status:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        /sbin/ntpq -p >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nDNS entry as per resolve.conf:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        cat /etc/resolv.conf >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nMount points:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        mount >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nYum history:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        /bin/yum history >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nRunning services:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        systemctl list-units --type=service --state=running >> /var/log/{{
+        post_patching_output_file }};
+        printf "\n\nCPU Usage:\n\n" >> /var/log/{{ post_patching_output_file }};
+        /bin/top -b -n1 >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nsysctl.conf file content:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        cat /etc/sysctl.conf >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nlimits.conf file content:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        cat /etc/security/limits.conf >> /var/log/{{
+        post_patching_output_file }};
+        printf "\n\nlvm.conf file content:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        cat /etc/lvm/lvm.conf >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nrsyslog.conf file content:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        cat /etc/rsyslog.conf >> /var/log/{{ post_patching_output_file }};
+        printf "\n\npasswd file content:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        cat /etc/passwd >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nOS group details:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        cat /etc/group >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nsudoers file content:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        cat /etc/sudoers >> /var/log/{{ post_patching_output_file }};
+        printf "\n\ncron.allow file content:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        cat /etc/cron.allow >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nLoadable kernel modules:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        lsmod >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nPCI buses info:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        lspci -tv >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nnetstat output:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        netstat -nr >> /var/log/{{ post_patching_output_file }};
+        printf "\n\n/etc/sysconfig/network file content:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        cat /etc/sysconfig/network >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nmultipath.conf file content:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        cat /etc/multipath.conf >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nPhysical volume information:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        pvs >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nVolume group information:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        vgs >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nLogical volume information:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        lvs >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nOS packages information:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        rpm -qa --last >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nMicrosoft Defender health:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        mdatp health >> /var/log/{{ post_patching_output_file }};
+        printf "\n\n/opt FS content:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        ls -l /opt >> /var/log/{{ post_patching_output_file }};
+        printf "\n\n/dev/mapper/ content:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        /bin/ls -l /dev/mapper/ >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nroot dir content:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        /bin/ls -l / >> /var/log/{{ post_patching_output_file }};
+        printf "\n\n/var/spool/mqueue/ content:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        /bin/ls -l -d /var/spool/mqueue >> /var/log/{{
+        post_patching_output_file }};
+        printf "\n\nCPU info:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        cat /proc/cpuinfo >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nPMON process info:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        ps -eaf | grep pmon >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nCrontab list:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        crontab -l >> /var/log/{{ post_patching_output_file }};
+        printf "\n\npvdisplay output:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        /sbin/pvdisplay >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nlvdisplay output:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        /sbin/lvdisplay >> /var/log/{{ post_patching_output_file }};
+        printf "\n\npvgdisplay output:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        /sbin/vgdisplay >> /var/log/{{ post_patching_output_file }};
+        printf "\n\niptables output:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        /sbin/iptables -L >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nexports content:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        cat /etc/exports >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nrc.local content:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        cat /etc/rc.local >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nyum.conf content:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        cat /etc/yum.conf >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nhosts file content:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        cat /etc/hosts >> /var/log/{{ post_patching_output_file }};
+        printf "\n\ninittab content:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        cat /etc/inittab >> /var/log/{{ post_patching_output_file }};
+        printf "\n\n/etc/default/grub file content:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        cat /etc/default/grub >> /var/log/{{ post_patching_output_file }};
+      failed_when: false
+      register: diag_data_backup_rhel
+      when:
+        ansible_distribution == "RedHat" or
+        ansible_distribution == "CentOS" or
+        ansible_distribution == "OracleLinux" or
+        ansible_distribution == "Rocky"
+      changed_when: true
+
+    - name:
+        Capture the system diagnostic data for Suse  # noqa risky-shell-pipe
+      ansible.builtin.shell: |
+        printf "Filesystem usage:\n\n" > /var/log/{{
+        post_patching_output_file }};
+        /bin/df -h >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nIP configuration:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        /sbin/ip a >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nIP configuration details:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        /sbin/ifconfig -a >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nRouting, gateway etc. information:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        /sbin/route -n >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nAvailable partitions (SAN and Local):\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        /sbin/fdisk -l >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nKenel, architecture etc. details:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        /bin/uname -a >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nServer release version:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        cat /etc/*release >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nPlatform - physical or virtual:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        dmidecode -s system-manufacturer >> /var/log/{{
+        post_patching_output_file }};
+        dmidecode -s system-product-name >> /var/log/{{
+        post_patching_output_file }};
+        printf "\n\nfstab details:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        cat /etc/fstab >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nUptime information:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        uptime >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nMemory details:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        /bin/free -mt >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nNTP status:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        /sbin/ntpq -p >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nDNS entry as per resolve.conf:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        cat /etc/resolv.conf >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nMount points:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        mount >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nZypp history:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        cut -d "|" -f 1-4 -s --output-delimiter " | " /var/log/zypp/history |
+        grep -v " radd " >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nRunning services:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        systemctl list-units --type=service --state=running >> /var/log/{{
+        post_patching_output_file }};
+        printf "\n\nCPU Usage:\n\n" >> /var/log/{{ post_patching_output_file }};
+        /bin/top -b -n1 >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nMicrosoft Defender health:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        mdatp health >> /var/log/{{ post_patching_output_file }};
+        printf "\n\n/opt FS content:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        ls -l /opt >> /var/log/{{ post_patching_output_file }};
+      failed_when: false
+      register: diag_data_backup_sles
+      when: "'SLE' in ansible_distribution"
+      changed_when: true
+
+    - name:
+        Capture the system diagnostic data for ubuntu  # noqa risky-shell-pipe
+      ansible.builtin.shell: |
+        printf "Filesystem usage:\n\n" > /var/log/{{
+        post_patching_output_file }};
+        /bin/df -h >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nIP configuration:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        /sbin/ip a >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nIP configuration details:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        /sbin/ifconfig -a >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nRouting, gateway etc. information:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        /sbin/route -n >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nAvailable partitions (SAN and Local):\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        /sbin/fdisk -l >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nKenel, architecture etc. details:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        /bin/uname -a >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nServer release version:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        cat /etc/*release >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nPlatform - physical or virtual:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        dmidecode -s system-manufacturer >> /var/log/{{
+        post_patching_output_file }};
+        dmidecode -s system-product-name >> /var/log/{{
+        post_patching_output_file }};
+        printf "\n\nfstab details:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        cat /etc/fstab >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nUptime information:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        uptime >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nMemory details:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        /bin/free -mt >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nNTP status:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        /usr/bin/ntpq -p >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nDNS entry as per resolve.conf:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        cat /etc/resolv.conf >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nMount points:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        mount >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nRunning services:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        systemctl list-units --type=service --state=running >> /var/log/{{
+        post_patching_output_file }};
+        printf "\n\nRunning process:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        top -c -b -n 1 |head -n 50 >> /var/log/{{ post_patching_output_file }};
+        printf "\n\nMicrosoft Defender health:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        mdatp health >> /var/log/{{ post_patching_output_file }};
+        printf "\n\n/opt FS content:\n\n" >> /var/log/{{
+        post_patching_output_file }};
+        ls -l /opt >> /var/log/{{ post_patching_output_file }};
+      failed_when: false
+      register: diag_data_backup_ubuntu
+      when: ansible_distribution == "Ubuntu"
+      changed_when: true
+
+    - name: Change config file permissions
+      ansible.builtin.file:
+        path: /var/log/{{ post_patching_output_file }}
+        mode: '0644'
+
+    - name: Fetch pre patching file
+      ansible.builtin.find:
+        paths: "/var/log"
+        patterns: "*Pre_Patch_config_{{ tower_job_id }}_*.txt"
+      register: pre_patching_file
+      changed_when: false
+
+    - name: Set pre_patching_output_file
+      ansible.builtin.set_fact:
+        pre_patching_output_file:
+          "{{ pre_patching_file.files[0].path |
+          regex_replace('^.*/(.*)$', '\\1') }}"
+      when: pre_patching_file.matched | int != 0
+
+    - name: Fetch uname information
+      ansible.builtin.command: uname -a
+      register: uname_output
+      changed_when: false
+
+    - name: Fetch uptime information
+      ansible.builtin.command: uptime
+      register: uptime_output
+      changed_when: false
+
+    - name: Update exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          uname output:- {{ uname_output.stdout }}\n\n
+          uptime output:- {{ uptime_output.stdout }}\n\n
+          Refer below files to get the details of
+          pre and post patching configuration:\n\n
+          /var/log/{{ post_patching_output_file }}.\n\n
+          /var/log/{{ pre_patching_output_file }}.\n\n"
+      when: pre_patching_output_file is defined
+
+  rescue:
+
+    - name: Return code generation in case of
+            failure while fetching post patching configuration
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5019
+        rc_message:
+          "Fetching post patching configuration has failed.
+          Further investigation is required by the developer."
+
+    - name: Update exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Fetching post patching configuration has failed.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Fetching post patching configuration has failed"
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Fetch system diagnostic data for comparison
+  block:
+
+    - name:
+        Fetch list of running
+        services  # noqa risky-shell-pipe command-instead-of-module
+      ansible.builtin.shell: |
+        systemctl list-units --type=service --state=running |
+        awk '{print $1}' | sed '1d' | sed '/^$/,$d'
+      changed_when: false
+      register: running_services_post
+      when:
+        not ((ansible_distribution == "RedHat" or
+        ansible_distribution == "CentOS" or
+        ansible_distribution == "OracleLinux" or
+        ansible_distribution == "Rocky") and
+        ansible_distribution_major_version | int < 7)
+
+    - name: Fetch swap memory  # noqa risky-shell-pipe
+      ansible.builtin.shell: |
+        free -mt | grep Swap
+      changed_when: false
+      register: swap_post
+
+    - name: Fetch available partitions
+      ansible.builtin.command: /sbin/fdisk -l
+      changed_when: false
+      register: fdisk_post
+
+    - name: Fetch IP configuration
+      ansible.builtin.command: /sbin/ip a
+      changed_when: false
+      register: ip_config_post
+
+    - name: Fetch active kernel version
+      ansible.builtin.command: /bin/uname -r
+      changed_when: false
+      register: kernel_post
+
+    - name: Fetch fstab details
+      ansible.builtin.command: cat /etc/fstab
+      changed_when: false
+      register: fstab_post
+
+    - name: Fetch DNS entries
+      ansible.builtin.command: cat /etc/resolv.conf
+      changed_when: false
+      register: dns_post
+      when:
+        not ((ansible_distribution == "RedHat" or
+        ansible_distribution == "CentOS" or
+        ansible_distribution == "OracleLinux" or
+        ansible_distribution == "Rocky") and
+        ansible_distribution_major_version | int >= 8)
+
+    - name: Fetch list of filesystem and mount points  # noqa risky-shell-pipe
+      ansible.builtin.shell: |
+        df -h | awk '{print $1,$6}'
+      changed_when: false
+      register: fs_list_post
+
+  rescue:
+
+    - name: Return code generation in case of failure
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5005
+        rc_message:
+          "Fetching system diagnostic data for comparison has failed.
+          Further investigation is required by the developer."
+
+    - name: Update exec_message
+      ansible.builtin.set_fact:
+        patching_pre_req_validation: false
+        exec_message:
+          "{{ exec_message }}
+          Unable to capture system diagnostic data for comparison.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Unable to capture system diagnostic data for comparison"
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Compare pre and post configuration
+  block:
+
+    - name: Compare pre and post configuration
+      when:
+        - running_services_post is not skipped
+        - running_services_pre is defined
+        - running_services_pre.stdout != running_services_post.stdout
+      block:
+
+        - name: List of services which were running before patching
+                but not running now
+          ansible.builtin.set_fact:
+            services_delta:
+              "{{ running_services_pre.stdout_lines |
+              difference(running_services_post.stdout_lines) }}"
+
+        - name: Update exec_message if running services differ
+          ansible.builtin.set_fact:
+            post_patching_validation: false
+            exec_message:
+              "{{ exec_message }}
+              Below services are not running now,
+              but were running before patching:\n\n
+              {{ services_delta }}\n\n"
+          when: services_delta | length
+
+    - name: Update exec_message if swap memory differ
+      ansible.builtin.set_fact:
+        post_patching_validation: false
+        exec_message:
+          "{{ exec_message }}
+          Swap memory post patching differ than pre patching one.\n\n"
+      when:
+        - swap_pre is defined
+        - swap_pre.stdout != swap_post.stdout
+
+    - name: Update exec_message if available partitions differ
+      ansible.builtin.set_fact:
+        post_patching_validation: false
+        exec_message:
+          "{{ exec_message }}
+          Available partitions post patching differ
+          than pre patching list.\n\n"
+      when:
+        - fdisk_pre is defined
+        - fdisk_pre.stdout != fdisk_post.stdout
+
+    - name: Update exec_message if IP configuration differ
+      ansible.builtin.set_fact:
+        post_patching_validation: false
+        exec_message:
+          "{{ exec_message }}
+          IP configuration post patching differ than pre patching one.\n\n"
+      when:
+        - ip_config_pre is defined
+        - ip_config_pre.stdout != ip_config_post.stdout
+
+    - name: Update exec_message if kernel version differ
+      ansible.builtin.set_fact:
+        post_patching_validation: false
+        exec_message:
+          "{{ exec_message }}
+          Kernel version post patching differ than pre patching one.\n\n"
+      when:
+        - kernel_pre is defined
+        - kernel_pre.stdout != kernel_post.stdout
+
+    - name: Update exec_message if fstab details differ
+      ansible.builtin.set_fact:
+        post_patching_validation: false
+        exec_message:
+          "{{ exec_message }}
+          Fstab details post patching differ
+          than pre patching one.\n\n"
+      when:
+        - fstab_pre is defined
+        - fstab_pre.stdout != fstab_post.stdout
+
+    - name: Update exec_message if DNS entries differ
+      ansible.builtin.set_fact:
+        post_patching_validation: false
+        exec_message:
+          "{{ exec_message }}
+          DNS entries post patching differ
+          than pre patching list.\n\n"
+      when:
+        - dns_post is not skipped
+        - dns_pre is defined
+        - dns_pre.stdout != dns_post.stdout
+
+    - name: Compare pre and post configuration
+      when:
+        - fs_list_pre is defined
+        - fs_list_pre.stdout_lines | length !=
+          fs_list_post.stdout_lines | length
+      block:
+
+        - name: List of mount points which were available before patching
+                but not available now
+          ansible.builtin.set_fact:
+            fs_delta:
+              "{{ fs_list_pre.stdout_lines |
+              difference(fs_list_post.stdout_lines) }}"
+
+        - name: Update exec_message if list of mount points differ
+          ansible.builtin.set_fact:
+            post_patching_validation: false
+            exec_message:
+              "{{ exec_message }}
+              Below mount points are not available now,
+              but were available before patching:\n\n
+              {{ fs_delta }}\n\n"
+          when: fs_delta | length
+
+    - name: Post patching configuration validation successful
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Post patching configuration validation is successful.\n\n"
+      when: post_patching_validation

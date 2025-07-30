@@ -1,0 +1,15 @@
+---
+## Post-Tasks específicos para Windows
+## Función: Verificaciones y reportes finales para Windows
+
+- name: "Verificar conectividad Windows"
+  ansible.builtin.include_tasks: verificar_conectividad.yml
+  tags: [post_tasks_windows, verificar_conectividad]
+
+- name: "Obtener información final Windows"
+  ansible.builtin.include_tasks: obtener_informacion_final.yml
+  tags: [post_tasks_windows, obtener_informacion]
+
+- name: "Generar reporte final Windows"
+  ansible.builtin.include_tasks: generar_reporte_final.yml
+  tags: [post_tasks_windows, generar_reporte] 

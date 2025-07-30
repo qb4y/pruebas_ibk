@@ -1,0 +1,67 @@
+---
+- name: KBs list validation fail
+  fail:
+    msg: "Please insert the KBs list in the right format: 'KB12345 KB67890' or 'ALL'"
+  when: update_code.strip() is not regex("^(KB\\d+\\s)+(KB\\d+)$|^(KB\\d+)$|^(ALL)$")
+
+- name: create a temp directory to save the PS script
+  win_tempfile:
+    state: directory
+    prefix: update_sccm
+    path: "%windir%/temp"
+  register: dir_output
+
+- name: copy PS script to endopint
+  win_copy:
+    src: update_with_sccm.ps1
+    dest: "{{ dir_output.path }}/update_with_sccm.ps1"
+
+- name: Execute PS script to install updates
+  block:
+    - name: Execute PS script to install updates
+      win_shell: '{{ dir_output.path }}/update_with_sccm.ps1 "{{ update_code.strip() }}"'
+      register: script_output
+      changed_when: false
+      async: 3600
+      poll: 0
+
+    - name: Check PS script status
+      async_status:
+        jid: "{{ script_output.ansible_job_id }}"
+      register: script_status
+      until: script_status.finished
+      retries: 30
+      delay: 120
+
+  always:
+    - name: Delete PS file
+      win_file:
+        state: absent
+        path: "{{ dir_output.path }}/update_with_sccm.ps1"
+
+- name: Script error
+  fail:
+    msg:
+      - "Error occurred while executing the script"
+      - "{{ script_status.stderr_lines }}"
+  when:
+    - script_status.stderr is defined
+    - script_status.stderr | length > 0
+
+- name: Updates installation error
+  fail:
+    msg:
+      - "Error occurred while installing updates"
+      - "{{ script_status.stdout_lines }}"
+  when:
+    - script_status.stdout_lines is defined
+    - "'- ERROR:' in script_status.stdout"
+
+- name: Script executed succefully
+  debug:
+    msg: "{{ script_status.stdout_lines }}"
+
+- name: Validate reboot
+  set_fact:
+    reboot_required: true
+  when: "'- Reboot Required' in script_status.stdout"

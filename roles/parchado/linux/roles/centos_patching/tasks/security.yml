@@ -1,0 +1,129 @@
+---
+- name: Running security_all on host
+  block:
+
+    - name: Running security_all for version 7 and below  # noqa package-latest
+      ansible.builtin.yum:
+        name: '*'
+        security: true
+        exclude: "{{ yum_exclude_patch_list }}"
+        state: latest
+        update_cache: true
+        lock_timeout: 180
+      register: yum_security_result
+      async: "{{ async_value }}"
+      poll: "{{ poll_value }}"
+      when: ansible_distribution_major_version | int < 8
+      ignore_errors: true
+
+    - name: Running security_all for version 8 and above  # noqa package-latest
+      ansible.builtin.dnf:
+        name: '*'
+        security: true
+        exclude: "{{ yum_exclude_patch_list }}"
+        state: latest
+        update_cache: true
+        lock_timeout: 180
+      register: dnf_security_result
+      async: "{{ async_value }}"
+      poll: "{{ poll_value }}"
+      when: ansible_distribution_major_version | int >= 8
+      ignore_errors: true
+
+    - name: Set patching result
+      ansible.builtin.set_fact:
+        security_result:
+          "{% if yum_security_result is not skipped
+          %}{{ yum_security_result }}{% else
+          %}{{ dnf_security_result }}{% endif %}"
+
+    - name: Fail the execution
+      ansible.builtin.fail:
+        msg: "Patching failed"
+      when: security_result is failed
+
+  rescue:
+
+    - name: Return code incase of CentOS security_all patch update fails
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5011
+        rc_message:
+          "CentOS security_all patching failed.
+          Below is the error:
+          {{ security_result.msg }}"
+
+    - name: Failure - patches not installed
+      ansible.builtin.set_fact:
+        patch_status: 'failure'
+        exec_message:
+          "{{ exec_message }}
+          Patching result:\n\n
+          Patch installation FAILED, please perform manual patching.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "CentOS security_all patching failed."
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+# Nothing to do here, all packages are up to date
+- name: Nothing to do here, all packages are up to date
+  when:
+    - security_result is not failed
+    - not security_result.changed
+  block:
+
+    - name: Set returncode
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_success: true
+        rc_message: "Nothing to do here, all packages are up to date"
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        patch_status: 'nothing_to_do'
+        exec_message:
+          "{{ exec_message }}
+          Patching result:\n\n
+          Nothing to do here, all packages are up to date.\n\n"
+
+- name: Patches installed successfully
+  when:
+    - patch_status != 'nothing_to_do'
+    - security_result is not failed
+  block:
+
+    - name: Set returncode
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_success: true
+        rc_message: "Patches installed successfully"
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        patch_status: 'success'
+        exec_message:
+          "{{ exec_message }}
+          Patching result:\n\n
+          Patches installed successfully.\n\n"

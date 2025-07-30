@@ -1,0 +1,12 @@
+- name: Inicializar variable de acumulación
+  set_fact:
+    vault_all_secrets: {}
+
+- name: Iterar sobre todos los secretos definidos en VC_VAULT_SECRET_PATHS
+  include_tasks: get_credential_item.yml
+  loop: "{{ VC_VAULT_SECRET_PATHS | dict2items }}"
+  loop_control:
+    loop_var: item
+  vars:
+    vault_key: "{{ item.key }}"
+    vault_path: "{{ item.value }}"

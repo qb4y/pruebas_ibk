@@ -1,0 +1,105 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Windows Patch Management Input Validation Schema",
+  "type": "object",
+  "properties": {
+    "winpatch_patching_mode": {
+      "type": "string",
+      "enum": ["wsus", "sccm"],
+      "description": "Patch management mode"
+    },
+    "winpatch_target_environment": {
+      "type": "string",
+      "pattern": "^[A-Z]{2,10}$",
+      "description": "Target environment identifier"
+    },
+    "winpatch_domain_name": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$",
+      "description": "Active Directory domain name"
+    },
+    "winpatch_wsus_server": {
+      "type": "string",
+      "format": "uri",
+      "description": "WSUS server URL"
+    },
+    "winpatch_ad_username": {
+      "type": "string",
+      "minLength": 1,
+      "description": "AD service account username"
+    },
+    "winpatch_ad_password": {
+      "type": "string",
+      "minLength": 1,
+      "description": "AD service account password"
+    },
+    "winpatch_selected_category": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["CriticalUpdates", "SecurityUpdates", "UpdateRollups", "Updates", "DefinitionUpdates"]
+      },
+      "minItems": 1,
+      "description": "Update categories to install"
+    },
+    "winpatch_update_operation": {
+      "type": "string",
+      "enum": ["install", "download"],
+      "description": "Operation type"
+    },
+    "winpatch_reboot_after_installation": {
+      "type": "boolean",
+      "description": "Whether to reboot after installation"
+    },
+    "winpatch_resume_services": {
+      "type": "boolean",
+      "description": "Whether to resume services after reboot"
+    },
+    "winpatch_perform_ou_registration": {
+      "type": "boolean",
+      "description": "Whether to perform AD OU registration"
+    },
+    "winpatch_rescue_endpoint": {
+      "type": "boolean",
+      "description": "Enable rescue procedures on failure"
+    },
+    "winpatch_save_logs": {
+      "type": "boolean",
+      "description": "Whether to save detailed logs"
+    },
+    "winpatch_logs_path": {
+      "type": "string",
+      "pattern": "^[A-Za-z]:\\\\.*$",
+      "description": "Path for log files"
+    },
+    "winpatch_update_code": {
+      "type": "string",
+      "pattern": "^(ALL|(KB\\d+(,KB\\d+)*)?)$",
+      "description": "Specific KB codes or ALL for all updates"
+    },
+    "winpatch_sfs_upload_url": {
+      "type": "string",
+      "format": "uri",
+      "description": "SFS server URL for log upload"
+    }
+  },
+  "required": ["winpatch_patching_mode", "winpatch_target_environment", "winpatch_domain_name"],
+  "allOf": [
+    {
+      "if": {
+        "properties": { "winpatch_patching_mode": { "const": "wsus" } }
+      },
+      "then": {
+        "required": ["winpatch_wsus_server"]
+      }
+    },
+    {
+      "if": {
+        "properties": { "winpatch_perform_ou_registration": { "const": true } }
+      },
+      "then": {
+        "required": ["winpatch_ad_username", "winpatch_ad_password"]
+      }
+    }
+  ]
+} 

@@ -1,0 +1,16 @@
+---
+
+disk_validation: true
+fs_space_validation: true
+os_update_verification: false
+bootlist_addition_verification: false
+disk_cloning_verification: false
+filesets_consistency_flag: true
+exec_message: ''
+continue_execution: true
+efix_list_concat: ''
+mount_success: false
+readme_url:
+  "https://github.kyndryl.net/Continuous-Engineering/ansible_collection_patching_unix/blob/master/AIX_OS_Patching_README.md"
+sender: "(Ansible Robot) ansible-robot@kyndryl.com"
+ansible_ssh_extra_args: '-o ServerAliveInterval=10 -o ServerAliveCountMax=1'

@@ -1,0 +1,154 @@
+---
+
+- name: Configure satellite repo
+  when: patch_source == 'satellite'
+  block:
+
+    - name: Backup the existing repositories  # noqa risky-file-permissions
+      ansible.builtin.copy:
+        src: "/etc/yum.repos.d/"
+        dest: "/var/tmp/"
+
+    - name: Remove the existing katello package
+      ansible.builtin.yum:
+        name: "katello"
+        state: "absent"
+
+    - name:
+        Install latest katello package
+        # noqa risky-shell-pipe command-instead-of-module
+      ansible.builtin.command:
+        rpm -ivh {{
+        patch_source_url }}/katello-ca-consumer-latest.noarch.rpm --noverify
+      changed_when: true
+      register: katello_install_out
+      failed_when:
+        - katello_install_out.rc != 0
+        - "'is already installed' not in katello_install_out.stderr"
+
+    - name: Register satellite repo
+      ansible.builtin.command:
+        subscription-manager register --org="{{ satellite_org_name }}"
+        --activationkey="{{ satellite_repo_activation_key }}" --force
+      changed_when: true
+
+    - name: Configure satellite repo
+      ansible.builtin.command:
+        subscription-manager config --rhsm.manage_repos=1
+      changed_when: true
+
+  rescue:
+
+    - name: Return code generation in case of failure
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5062
+        rc_message:
+          "Configuring satellite patch source has failed.
+          Further investigation is required by the developer"
+
+    - name: Update exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Configuring satellite patch source has failed.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          "/etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}"
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Configuring patch source has failed"
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Configure reposerver
+  when: patch_source == 'reposerver'
+  block:
+
+    - name: Disable existing satellite repo
+      when: disable_satellite_repo
+      block:
+
+        - name: Unregister satellite repo
+          ansible.builtin.command:
+            subscription-manager unregister
+          changed_when: true
+          failed_when: false
+
+        - name: Clean repo list
+          ansible.builtin.command:
+            subscription-manager clean
+          changed_when: true
+          failed_when: false
+
+        - name:
+            Uninstall katello package
+            # noqa risky-shell-pipe command-instead-of-module
+          ansible.builtin.command:
+            rpm -ev {{ katello_package_to_be_removed }}
+          changed_when: true
+          failed_when: false
+
+    - name:
+        Configure reposerver
+        # noqa risky-shell-pipe command-instead-of-module
+      ansible.builtin.command:
+        yum --config='{{ patch_source_url }}'
+        install '{{ reposerver_repo_name }}' -y
+      changed_when: true
+
+  rescue:
+
+    - name: Return code generation in case of failure
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5063
+        rc_message:
+          "Configuring reposerver patch source has failed.
+          Further investigation is required by the developer"
+
+    - name: Update exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Configuring reposerver patch source has failed.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          "/etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}"
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Configuring patch source has failed"
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false

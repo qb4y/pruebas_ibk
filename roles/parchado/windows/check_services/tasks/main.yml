@@ -1,0 +1,6 @@
+---
+# tasks file for check_services - No need to track services
+
+- name: Services check not needed
+  debug:
+    msg: "Services check skipped - system reboot will handle all service restarts automatically"

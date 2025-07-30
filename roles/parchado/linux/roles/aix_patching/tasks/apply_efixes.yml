@@ -1,0 +1,175 @@
+---
+- name: Mount NFS volume
+  ansible.builtin.include_tasks: mount_nfs.yml
+  when: nfs_path | length
+
+- name: Apply efixes
+  block:
+
+    - name: Fetch list of efixes to be applied
+      ansible.builtin.find:
+        paths: "{{ efix_filesets_location }}"
+        patterns: "*epkg.Z"
+      register: efix_list
+      changed_when: false
+
+    - name: Create a list of efixes
+      ansible.builtin.set_fact:
+        efix_list:
+          "{{ efix_list.files | map(attribute='path') | list }}"
+
+    - name: Apply efixes
+      ansible.builtin.command:
+        emgr -e {{ item }}
+      loop: "{{ efix_list }}"
+      changed_when: true
+      when: efix_list | length > 0
+
+    - name: Applying efixes successful
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Successfully applied below efixes:\n\n
+          {{ efix_list }}\n\n"
+      when: efix_list | length > 0
+
+  rescue:
+
+    - name:
+        Return code generation in case of
+        applying efixes fails
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: developer
+        rc_group: component_playbook
+        rc_number: 5040
+        rc_message:
+          "Applying efixes has failed.
+          Further investigation is required by the developer."
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Applying efixes has failed.\n\n
+          Aborting the patching process.\n\n"
+
+    - name: Unmount NFS volume
+      ansible.builtin.include_tasks: unmount_nfs.yml
+      when:
+        - nfs_path | length
+        - mount_success
+        - unmount_nfs_after_patching
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Applying efixes has failed."
+      when: fail_on_error | bool
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Server reboot
+  when: reboot_required | bool
+  block:
+
+    - name: Reboot the server
+      ansible.builtin.reboot:
+        msg: Reboot initiated by AIX patching playbook
+        connect_timeout: 10
+        reboot_timeout: 600
+      register: reboot_output
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Server rebooted successfully.\n\n"
+
+  rescue:
+
+    - name: Wait for the reboot to complete.
+      ansible.builtin.wait_for_connection:
+        connect_timeout: 120
+        sleep: 30
+        delay: 60
+        timeout: 600
+      when: reboot_output.rebooted
+      failed_when: false
+
+    - name: Get server uptime
+      ansible.builtin.command: uptime
+      when: reboot_output.rebooted
+      register: uptime
+      changed_when: false
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Server rebooted successfully.\n\n"
+      when:
+        - reboot_output.rebooted
+        - uptime.rc == 0
+
+    - name:
+        Return code generation in case server reboot fails
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: developer
+        rc_group: component_playbook
+        rc_number: 5032
+        rc_message:
+          "Server reboot has failed.
+          Further investigation is required by the developer."
+      when: not reboot_output.rebooted or uptime.rc != 0
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Server reboot has failed.\n\n"
+      when: not reboot_output.rebooted or uptime.rc != 0
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+      when: not reboot_output.rebooted or uptime.rc != 0
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+      when: not reboot_output.rebooted or uptime.rc != 0
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Server reboot has failed."
+      when: fail_on_error | bool and
+            (not reboot_output.rebooted or uptime.rc != 0)
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+      when: not reboot_output.rebooted or uptime.rc != 0
+
+- name: Unmount NFS volume
+  ansible.builtin.include_tasks: unmount_nfs.yml
+  when:
+    - nfs_path | length
+    - mount_success
+    - unmount_nfs_after_patching

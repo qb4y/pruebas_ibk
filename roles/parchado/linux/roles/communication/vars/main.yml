@@ -1,0 +1,7 @@
+---
+hop_detected: 0
+affected_host: "{{ inventory_hostname }}"
+jh_user: "{{ hostvars[affected_host]['jh_user'] }}"
+jh_ssh_private_key_file:
+  "{{ hostvars[affected_host]['jh_ssh_private_key_file'] }}"
+jh_ssh_extra_args: "{{ hostvars[affected_host]['jh_ssh_extra_args'] }}"

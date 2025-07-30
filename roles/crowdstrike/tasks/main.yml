@@ -1,0 +1,79 @@
+---
+- name: 🔐 Obtener credenciales de CrowdStrike desde Vault
+  import_role:
+    name: vault_core
+  delegate_to: localhost
+  run_once: true
+  tags: ["vault"]
+
+- name: 🔁 Cargar variables de CrowdStrike a todos los hosts
+  set_fact:
+    crowdstrike: "{{ vault_all_secrets.crowdstrike }}"
+
+- name: 🔁 Propagar variables de CrowdStrike a todos los hosts
+  set_fact:
+    crowdstrike_console_url: "{{ crowdstrike.vault_crowdstrike_console_url }}"
+    crowdstrike_customer_id: "{{ crowdstrike.vault_crowdstrike_customer_id }}"
+    crowdstrike_endpoint_1: "{{ crowdstrike.vault_crowdstrike_endpoint_1 }}"
+    crowdstrike_endpoint_2: "{{ crowdstrike.vault_crowdstrike_endpoint_2 }}"
+  delegate_to: localhost
+  run_once: true
+  tags: ["vault"]
+
+- name: Validar que las variables de CrowdStrike están disponibles
+  ansible.builtin.assert:
+    that:
+      - crowdstrike_console_url is defined
+      - crowdstrike_customer_id is defined
+      - crowdstrike_endpoint_1 is defined
+      - crowdstrike_endpoint_2 is defined
+    fail_msg: "❌ Variables de CrowdStrike no fueron cargadas correctamente. Asegúrate de importar el rol vault_core."
+  tags: [vault]
+
+- name: Configurar variables para provider_minio
+  set_fact:
+    provider_minio_product: "crowdstrike"
+    PROVIDER_MINIO_INCLUDE_CERTIFICATES: "{{ crowdstrike_include_certificates | default(false) }}"
+
+- name: 📦 Obtener URLs de descarga desde MinIO
+  import_role:
+    name: provider_minio
+  tags: ["minio"]
+
+- name: 🔁 Propagar credenciales MinIO para descargas
+  set_fact:
+    minio_user: "{{ minio_user }}"
+    minio_password: "{{ minio_password }}"
+    installer_path: "{{ installer_path }}"
+  tags: ["minio"]
+
+- name: Validar URLs de descarga
+  ansible.builtin.assert:
+    that:
+      - crowdstrike_installer_url is defined
+      - crowdstrike_cert_urls is defined
+    fail_msg: |
+      ❌ No se pudieron generar las URLs de descarga desde MinIO.
+      Verifica:
+      1. Conectividad con MinIO
+      2. Archivos existen en bucket: {{ minio_bucket }}
+      3. MinIO Client (mc) está disponible en el execution environment
+  tags: [minio]
+
+- name: Mostrar configuración de CrowdStrike
+  ansible.builtin.debug:
+    msg:
+      - "🛡️ Producto: CrowdStrike Falcon Sensor"
+      - "🔗 Consola: {{ crowdstrike_console_url }}"
+      - "🆔 Customer ID: {{ crowdstrike_customer_id }}"
+      - "📥 Instalador URL: ✅ Configurado desde MinIO"
+      - "📜 Certificados: {{ crowdstrike_cert_urls | length }} URLs"
+      - "🖥️ SO detectado: {{ os_key | default('Auto-detectado') }}"
+
+- name: Ejecutar instalación en Windows
+  ansible.builtin.include_tasks: windows.yml
+  when: target_platform == 'Windows'
+
+- name: Ejecutar instalación en Linux
+  ansible.builtin.include_tasks: linux.yml
+  when: target_platform == 'Linux'

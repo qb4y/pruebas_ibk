@@ -1,0 +1,123 @@
+---
+- name: Run yum security update on host
+  block:
+
+    - name: Run yum security update with extra arguments  # noqa package-latest
+      community.general.zypper:
+        name: '*'
+        state: latest
+        type: patch
+        extra_args: '--category=security {{ extra_args_suse }}'
+      register: security_result_extra_args
+      async: "{{ async_value }}"
+      poll: "{{ poll_value }}"
+      when: extra_args_suse
+      ignore_errors: true
+
+    - name:
+        Run yum security update without extra arguments  # noqa package-latest
+      community.general.zypper:
+        name: '*'
+        state: latest
+        type: patch
+        extra_args: '--category=security'
+      register: security_result_no_extra_args
+      async: "{{ async_value }}"
+      poll: "{{ poll_value }}"
+      when: not extra_args_suse
+      ignore_errors: true
+
+    - name: Set patching result
+      ansible.builtin.set_fact:
+        security_result:
+          "{% if security_result_extra_args is not skipped
+          %}{{ security_result_extra_args }}{% else
+          %}{{ security_result_no_extra_args }}{% endif %}"
+
+    - name: Fail the execution
+      ansible.builtin.fail:
+        msg: "Failed to run security_all patching"
+      when: security_result is failed
+
+  rescue:
+
+    - name: Return code incase of Suse security_all patch update fails
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5011
+        rc_message: "Suse security_all patching failed."
+
+    - name: Failure - patches not installed
+      ansible.builtin.set_fact:
+        patch_status: 'failure'
+        exec_message:
+          "{{ exec_message }}
+          Patching result:\n\n
+          Patch installation FAILED, please perform manual patching.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Suse security_all patching failed"
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+# Nothing to do here, all packages are up to date
+- name: Nothing to do here, all packages are up to date
+  when:
+    - security_result is not failed
+    - not security_result.changed
+  block:
+
+    - name: Set returncode
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_success: true
+        rc_message: "Nothing to do here, all packages are up to date"
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        patch_status: 'nothing_to_do'
+        exec_message:
+          "{{ exec_message }}
+          Patching result:\n\n
+          Nothing to do here, all packages are up to date.\n\n"
+
+- name: Patches installed successfully
+  when:
+    - security_result is not failed
+    - security_result.changed
+  block:
+
+    - name: Set returncode
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_success: true
+        rc_message: "Patches installed successfully"
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        patch_status: 'success'
+        exec_message:
+          "{{ exec_message }}
+          Patching result:\n\n
+          Patches installed successfully.\n\n"

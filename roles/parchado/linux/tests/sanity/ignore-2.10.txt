@@ -1,0 +1,1 @@
+roles/aix_patching/files/prepost.sh shebang

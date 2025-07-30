@@ -1,0 +1,56 @@
+all:
+  vars:
+    vault_api_url: "https://10.13.76.30"
+    vault_secret_path: "secret/data/nessus"
+    vault_token: "root"
+    vault_trace_dir: "/tmp/vault_traces"
+
+  children:
+    windows:
+      hosts:
+        10.11.252.111:
+          ansible_become: false
+          ansible_user: Administrator
+          ansible_password: Bugtraq12
+          ansible_connection: winrm
+          ansible_port: 5985
+          ansible_winrm_transport: ntlm
+          ansible_winrm_server_cert_validation: ignore
+          ansible_winrm_operation_timeout_sec: 120
+          ansible_winrm_read_timeout_sec: 150
+          ansible_winrm_ps_execution_timeout_sec: 180
+          ansible_winrm_ps_script_timeout_sec: 180
+
+          ## Configuración general
+          verify_installation: true
+          retry_count: 3
+          retry_delay: 10
+
+          ## Mensajes en español
+          mensajes:
+            error_variables: "¡Error! Faltan variables obligatorias. Por favor, ingrese todas las variables necesarias."
+            verificando_sistema: "Verificando el sistema operativo..."
+            error_sistema: "¡Error! Este playbook solo funciona en Windows Server"
+            instalando_programas: "Instalando los programas solicitados..."
+            programas_instalados: "¡Listo! Los programas se instalaron correctamente"
+            error_programas: "¡Error! No se pudieron instalar los programas"
+            verificando_dns: "Verificando el servicio DNS..."
+            error_dns: "¡Error! El servicio DNS no está funcionando"
+            verificando_zona: "Verificando la zona DNS..."
+            error_zona: "¡Error! La zona DNS no existe"
+            creando_registro: "Creando el registro DNS..."
+            registro_creado: "¡Listo! El registro DNS se creó correctamente"
+            error_registro: "¡Error! No se pudo crear el registro DNS"
+          
+
+    # rhel_gold:
+    #   hosts:
+    #     192.168.1.69:
+    #       ansible_connection: ssh
+    #       ansible_user: root
+    #       ansible_password: 2212
+    #       hostname: rhel-01
+    #       swap_disk: /dev/sdb
+    #       dns_servers:
+    #         - 192.168.155.10
+    #         - 8.8.8.8

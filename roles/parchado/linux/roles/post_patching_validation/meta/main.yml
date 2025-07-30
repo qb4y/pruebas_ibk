@@ -1,0 +1,16 @@
+---
+dependencies: []
+galaxy_info:
+  author: Shushank Goswami
+  role_name: post_patching_validation
+  description: Performs post patching validation steps on Linux endpoints.
+  company: Kyndryl
+  license: Kyndryl Intellectual Property
+  min_ansible_version: '2.9.10'
+  platforms:
+    - name: EL
+      versions:
+        - all
+  galaxy_tags:
+    - patching
+    - linux

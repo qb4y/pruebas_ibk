@@ -1,0 +1,95 @@
+---
+# ========== PROCESAMIENTO WINDOWS ==========
+- name: 🪟 Procesando datos para sistema Windows
+  ansible.builtin.debug:
+    msg: "Recolectando información del sistema Windows: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+
+# ========== OBTENER HOSTNAME ==========
+- name: 🏷️  Obtener hostname del sistema
+  ansible.builtin.set_fact:
+    rcp_hostname: "{{ ansible_hostname }}"
+
+- name: ✅ Validar hostname Windows
+  ansible.builtin.assert:
+    that:
+      - rcp_hostname is defined
+      - rcp_hostname != ""
+      - rcp_hostname | length > 0
+    fail_msg: "❌ No se pudo obtener el hostname del sistema Windows"
+
+# ========== OBTENER IP ADDRESS ==========
+- name: 🌐 Obtener IP address principal
+  ansible.builtin.set_fact:
+    rcp_ip_address: "{{ ansible_default_ipv4.address }}"
+
+- name: ✅ Validar IP address Windows
+  ansible.builtin.assert:
+    that:
+      - rcp_ip_address is defined
+      - rcp_ip_address != ""
+      - rcp_ip_address is match("^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$")
+    fail_msg: "❌ IP address no válida o no encontrada: {{ rcp_ip_address | default('NO DEFINIDA') }}"
+
+# ========== FORMATEAR VERSION DEL SO ==========
+- name: 🔧 Formatear versión del SO según formato RCP para Windows
+  ansible.builtin.set_fact:
+    rcp_os_version: >-
+      {%- if ansible_distribution_version is match("^10\.") -%}
+        Microsoft_Windows Server 2019
+      {%- elif ansible_distribution_version is match("^6\.3") -%}
+        Microsoft_Windows Server 2012 R2
+      {%- elif ansible_distribution_version is match("^6\.2") -%}
+        Microsoft_Windows Server 2012
+      {%- elif ansible_distribution_version is match("^6\.1") -%}
+        Microsoft_Windows Server 2008 R2
+      {%- elif ansible_distribution_version is match("^6\.0") -%}
+        Microsoft_Windows Server 2008
+      {%- else -%}
+        Microsoft_{{ ansible_distribution }} {{ ansible_distribution_version }}
+      {%- endif -%}
+
+# ========== MAPEO ALTERNATIVO CON ANSIBLE_OS_NAME ==========
+- name: 🔄 Mapeo alternativo usando ansible_os_name si está disponible
+  ansible.builtin.set_fact:
+    rcp_os_version: >-
+      {%- if ansible_os_name is defined -%}
+        Microsoft_{{ ansible_os_name }}
+      {%- else -%}
+        {{ rcp_os_version }}
+      {%- endif -%}
+  when: 
+    - ansible_os_name is defined
+    - ansible_os_name != ""
+
+# ========== MAPEO CON PRODUCTO WINDOWS ==========
+- name: 🔄 Usar información del producto Windows si está disponible
+  ansible.builtin.set_fact:
+    rcp_os_version: "Microsoft_{{ ansible_product_name | default(ansible_distribution) }}"
+  when: 
+    - ansible_product_name is defined
+    - ansible_product_name != ""
+    - "'Windows' in ansible_product_name"
+
+- name: ✅ Validar formato de versión del SO Windows
+  ansible.builtin.assert:
+    that:
+      - rcp_os_version is defined
+      - rcp_os_version != ""
+      - rcp_os_version | length > 5
+      - "'Microsoft_' in rcp_os_version"
+    fail_msg: "❌ No se pudo formatear correctamente la versión del SO Windows: {{ rcp_os_version | default('NO DEFINIDA') }}"
+
+# ========== GENERAR NOMBRE DEL ARCHIVO CSV ==========
+- name: 📄 Generar nombre del archivo CSV
+  ansible.builtin.set_fact:
+    rcp_csv_filename: "{{ rcp_hostname }}_{{ ansible_date_time.date }}.csv"
+
+# ========== MOSTRAR DATOS RECOLECTADOS ==========
+- name: 📋 Mostrar datos recolectados para Windows
+  ansible.builtin.debug:
+    msg:
+      - "🪟 Sistema: Windows"
+      - "🏷️  Hostname: {{ rcp_hostname }}"
+      - "🌐 IP Address: {{ rcp_ip_address }}"
+      - "💿 OS Version: {{ rcp_os_version }}"
+      - "📄 Archivo CSV: {{ rcp_csv_filename }}"

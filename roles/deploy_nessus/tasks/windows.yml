@@ -1,0 +1,70 @@
+- name: 🧠 Recolectar facts si no están presentes (Windows)
+  ansible.builtin.setup:
+  when: ansible_os_family is not defined
+
+- name: Saltar si no es Windows
+  ansible.builtin.meta: end_play
+  when: ansible_os_family != 'Windows'
+
+- name: Definir nombre del archivo de instalación si no está definido
+  ansible.builtin.set_fact:
+    nessus_file: "NessusAgent-10.9.0-x64.msi"
+  when: nessus_file is not defined
+
+- name: Definir ruta de descarga local
+  ansible.builtin.set_fact:
+    local_installer_path: "C:\\Temp\\{{ nessus_file }}"
+
+- name: Crear carpeta temporal si no existe
+  ansible.windows.win_file:
+    path: "C:\\Temp"
+    state: directory
+
+- name: Verificar si el instalador ya existe localmente
+  ansible.windows.win_stat:
+    path: "{{ local_installer_path }}"
+  register: nessus_file_local
+
+- name: Descargar instalador de Nessus con win_get_url
+  ansible.windows.win_get_url:
+    url: "{{ nessus_installer_url }}"
+    dest: "{{ local_installer_path }}"
+  when: not nessus_file_local.stat.exists
+
+- name: Verificar que el archivo fue descargado correctamente
+  ansible.windows.win_stat:
+    path: "{{ local_installer_path }}"
+  register: file_check
+
+- name: Fallar si el instalador no se descargó correctamente
+  ansible.builtin.fail:
+    msg: "❌ Error: El instalador de Nessus no fue descargado correctamente en {{ local_installer_path }}."
+  when: not file_check.stat.exists or file_check.stat.size == 0
+
+- name: Instalar Nessus Agent
+  ansible.windows.win_package:
+    path: "{{ local_installer_path }}"
+    state: present
+    arguments: /quiet
+  register: install_nessus
+
+- name: Validar éxito de instalación
+  ansible.builtin.fail:
+    msg: "❌ Falló la instalación de Nessus Agent."
+  when: install_nessus.rc is defined and install_nessus.rc != 0
+
+- name: Verificar estado del servicio Nessus Agent
+  ansible.windows.win_service_info:
+    name: "Tenable Nessus Agent"
+  register: nessus_service_info
+
+- name: Fallar si el servicio Nessus no está corriendo o no existe
+  ansible.builtin.fail:
+    msg: "❌ El servicio 'Tenable Nessus Agent' no está activo o no fue encontrado."
+  when:
+    - nessus_service_info.services | length == 0 or
+      nessus_service_info.services[0].state != 'started'
+
+- name: ✅ Confirmación de instalación exitosa
+  ansible.builtin.debug:
+    msg: "✅ Nessus Agent instalado correctamente y el servicio está en estado '{{ nessus_service_info.services[0].state }}' en {{ inventory_hostname }}."

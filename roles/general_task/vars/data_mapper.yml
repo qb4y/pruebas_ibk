@@ -1,0 +1,98 @@
+---
+# Configuración de credenciales WinRM
+winrm_config:
+  default_transport: ntlm
+  cert_validation: ignore
+  default_port: 5985
+  https_port: 5986
+  connection_timeout: 30
+  read_timeout: 30
+  operation_timeout: 20
+  supported_transports:
+    - ntlm
+    - basic
+    - kerberos
+    - credssp
+
+# Configuración SSH para Linux
+ssh_config:
+  default_user: root
+  default_port: 22
+  connection_timeout: 30
+  supported_become_methods:
+    - sudo
+    - su
+    - doas
+    - pbrun
+
+# Mapeo de configuraciones de paginación según RAM
+paginacion_config:
+  "1024": # 1GB RAM
+    initial_size: 1024
+    maximum_size: 2048
+  "2047": # 2GB RAM
+    initial_size: 2048
+    maximum_size: 4096
+  "4096": # 4GB RAM
+    initial_size: 4096
+    maximum_size: 6144
+  "8192": # 8GB RAM
+    initial_size: 8192
+    maximum_size: 12288
+  "16384": # 16GB RAM
+    initial_size: 16384
+    maximum_size: 24576
+  "32768": # 32GB RAM
+    initial_size: 32768
+    maximum_size: 49152
+  "65536": # 64GB RAM
+    initial_size: 65536
+    maximum_size: 98304
+  "131072": # 128GB RAM
+    initial_size: 131072
+    maximum_size: 196608
+
+# Configuración por defecto de paginación
+paginacion_default:
+  drive: "C"
+  automatic_managed: false
+  reboot_required: true
+  reboot_timeout: 900
+  backup_current_config: true
+  validation_enabled: true
+
+# Configuración específica por SO
+windows_config:
+  pagefile_path: "C:\\pagefile.sys"
+  registry_path: "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management"
+  temp_log_path: "C:\\temp\\ansible_logs"
+  service_restart_required: false
+  powershell_execution_policy: "RemoteSigned"
+  supported_versions:
+    "Windows Server 2016": "NF44K-94Y89-RPJRR-J9KTJ-GVKQH"
+    "Windows Server 2019": "GJHPK-TNXCQ-GBWRM-2HYCQ-XHMMV"
+    "Windows Server 2022": "N2TMB-M6F3W-PTXJ4-R9Q33-DV9BF"
+    "Windows Server 2022 Standard": "2YFD7-NG44J-GD2XT-G6GM2-76GK8"
+    "Windows Server 2012 R2": "VVW4X-PNJMT-7PQX3-MT87D-2WDW8"
+    "Microsoft Windows Server 2022 Standard Evaluation": ""
+
+linux_config:
+  swap_file_path: "/swapfile"
+  swap_priority: 10
+  swappiness: 60
+  temp_log_path: "/tmp/ansible_logs"
+  supported_families:
+    - RedHat
+    - Debian
+    - Ubuntu
+    - Rocky
+    - AlmaLinux
+    - SUSE
+
+# Variables de control por defecto
+configurar_paginacion: false
+forzar_reinicio: false
+validar_configuracion: true
+usar_registro_alternativo: false
+crear_backup: true
+limpiar_temporales: false

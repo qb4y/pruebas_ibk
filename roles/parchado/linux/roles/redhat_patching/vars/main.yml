@@ -1,0 +1,10 @@
+---
+# vars file for ansible-role
+patch_status: 'failure'
+readme_url:
+  "https://github.kyndryl.net/Continuous-Engineering/ansible_collection_patching_unix/blob/master/README.md"
+installed_packages: []
+up_to_date_packages: []
+missing_packages: []
+failed_packages: []
+severity_patch_list: ''

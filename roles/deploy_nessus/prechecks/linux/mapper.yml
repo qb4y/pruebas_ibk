@@ -1,0 +1,24 @@
+- name: Paso 0 - Identificar instalador
+  ansible.builtin.import_tasks: step_0_identify_package.yml
+
+- name: Paso 1 - Verificar package manager
+  ansible.builtin.import_tasks: step_1_check_package_manager.yml
+
+- name: Paso 2 - Verificar instalación previa
+  ansible.builtin.import_tasks: step_2_check_previous_installation.yml
+
+- name: Paso 3 - Verificar URL accesible
+  ansible.builtin.import_tasks: step_3_check_url_reachable.yml
+
+- name: Paso 4 - Verificar espacio en disco
+  ansible.builtin.import_tasks: step_4_check_free_space.yml
+
+- name: Paso 5 - Verificar puerto 8834
+  ansible.builtin.import_tasks: step_5_check_port_8834_available.yml
+
+- name: Paso 6 - Verificar SELinux
+  ansible.builtin.import_tasks: step_6_check_selinux_disabled_or_permissive.yml
+
+- name: ✅ Todos los prechecks Linux fueron completados con éxito
+  ansible.builtin.debug:
+    msg: "✔️ Todos los prechecks linux pasaron. Procediendo con la instalación del agente Nessus."

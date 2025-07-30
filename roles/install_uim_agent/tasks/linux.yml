@@ -1,0 +1,90 @@
+---
+
+- name: Crear volumen lógico lv_nimsoft
+  command: lvcreate -n lv_nimsoft -L 4.8G rhel
+  args:
+    creates: /dev/rhel/lv_nimsoft
+
+- name: Formatear volumen como ext4
+  community.general.filesystem:
+    fstype: ext4
+    dev: /dev/rhel/lv_nimsoft
+
+- name: Crear directorio /opt/nimsoft
+  ansible.builtin.file:
+    path: /opt/nimsoft
+    state: directory
+    mode: '0755'
+
+- name: Asegurar que el volumen esté montado en /etc/fstab
+  ansible.posix.mount:
+    path: /opt/nimsoft
+    src: /dev/mapper/rhel-lv_nimsoft
+    fstype: ext4
+    opts: defaults
+    state: mounted
+
+- name: Crear directorio /tmp/UIM
+  ansible.builtin.file:
+    path: /tmp/UIM
+    state: directory
+    mode: '0755'
+
+- name: Construir contenido del nms-robot-vars.cfg (Linux)
+  ansible.builtin.set_fact:
+    uim_cfg_content: |
+      DOMAIN={{ DOMAIN }}
+      HUB={{ HUB }}
+      HUBIP={{ HUBIP }}
+      HUBROBOTNAME={{ HUBROBOTNAME }}
+      HUBPORT={{ HUBPORT }}
+      ROBOTIP={{ ROBOTIP }}
+      ROBOTNAME={{ ROBOTNAME }}
+      FIRST_PROBE_PORT={{ FIRST_PROBE_PORT }}
+
+- name: Escribir nms-robot-vars.cfg junto al instalador
+  ansible.builtin.copy:
+    dest: /tmp/UIM/nms-robot-vars.cfg
+    content: "{{ uim_cfg_content }}"
+    mode: '0644'
+
+- name: Copiar archivo de configuración a /opt
+  ansible.builtin.copy:
+    src: /tmp/UIM/nms-robot-vars.cfg
+    dest: /opt/nms-robot-vars.cfg
+    remote_src: true
+    mode: '0644'
+
+- name: 📦 Instalar el paquete RPM del robot usando yum sin verificación GPG
+  ansible.builtin.yum:
+    name: /tmp/UIM/nimsoft-robot.x86_64_linux_20.33.rpm
+    state: present
+    disable_gpg_check: true
+  when: not nimsoft_installed.stat.exists
+
+- name: 🔐 Asegurar permisos del script RobotConfigurer.sh
+  ansible.builtin.file:
+    path: /opt/nimsoft/install/RobotConfigurer.sh
+    mode: '0755'
+
+- name: 🧠 Ejecutar configuración del robot
+  ansible.builtin.command: /opt/nimsoft/install/RobotConfigurer.sh
+  when: not nimsoft_installed.stat.exists
+
+- name: ▶️ Iniciar el agente Nimbus con systemd
+  ansible.builtin.systemd:
+    name: nimbus
+    state: started
+    enabled: true
+  when: not nimsoft_installed.stat.exists
+
+- name: 🧪 Validar con systemd si nimbus está activo
+  ansible.builtin.systemd:
+    name: nimbus
+    state: started
+    enabled: true
+  register: nimbus_status
+
+- name: 🧾 Mostrar estado systemd del servicio Nimbus
+  ansible.builtin.debug:
+    var: nimbus_status.status.ActiveState

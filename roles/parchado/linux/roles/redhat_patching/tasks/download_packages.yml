@@ -1,0 +1,73 @@
+---
+
+- name: Download packages to a folder
+  block:
+
+    - name: Create directory to save downloaded packages
+      ansible.builtin.file:
+        path: "{{ package_download_location }}"
+        state: "{{ item }}"
+        mode: "0755"
+      loop:
+        - absent
+        - directory
+
+    - name:
+        Download packages but do not install -
+        version 7 and below  # noqa package-latest
+      ansible.builtin.yum:
+        name: '*'
+        state: latest
+        download_only: true
+        download_dir: "{{ package_download_location }}"
+      when: ansible_distribution_major_version | int < 8
+
+    - name:
+        Download packages but do not install -
+        version 8 and above  # noqa package-latest
+      ansible.builtin.dnf:
+        name: '*'
+        state: latest
+        download_only: true
+        download_dir: "{{ package_download_location }}"
+      when: ansible_distribution_major_version | int >= 8
+
+  rescue:
+
+    - name: Return code incase downloading packages fail
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5057
+        rc_message:
+          "Downloading packages to a folder has failed."
+
+    - name: Failure
+      ansible.builtin.set_fact:
+        patch_status: 'failure'
+        exec_message:
+          "{{ exec_message }}
+          Downloading packages to a folder has failed.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Downloading packages to a folder has failed"
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false

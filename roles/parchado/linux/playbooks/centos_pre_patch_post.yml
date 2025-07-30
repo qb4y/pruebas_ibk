@@ -1,0 +1,15 @@
+---
+
+- name: Include linux patching playbook
+  ansible.builtin.import_playbook: linux_patching.yml
+  vars:
+    upload_results: false
+    task_required: true
+    patch_type: "update_all"
+    run_patch_scan: false
+    backup_to_jumphost: false
+    send_email: false
+    recipients: []
+    teams_notification: false
+    channel_webhook_url: ''
+    sfs_upload: false

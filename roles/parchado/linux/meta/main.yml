@@ -1,0 +1,32 @@
+---
+galaxy_info:
+  author: Shushank Goswami, Radha Krishna M G
+  description:
+    This collection contains playbooks for patching related activities
+    on Unix systems.
+  company: Kyndryl
+  license: Kyndryl Intellectual Property
+  min_ansible_version: '2.9.10'
+  platforms:
+    - name: EL
+      versions:
+        - all
+    - name: AIX
+      versions:
+        - all
+  galaxy_tags:
+    - patching
+    - unix
+    - linux
+    - rhel
+    - centos
+    - suse
+    - ubuntu
+    - oraclelinux
+    - rockylinux
+    - aix
+    - cacm
+    - productionready
+    - clientdeployable
+    - securitypatchmanagement
+dependencies: []

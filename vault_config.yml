@@ -1,0 +1,5 @@
+vault_api_url: "http://10.11.252.58:30485"
+vault_secret_path: "kv/data/activation/nessus"
+vault_token: "root"
+vault_trace_dir: "/tmp/vault_traces"
+# vault_audit_log_path: "/Users/qbay/Documents/kyndryl/projects/roles/vault_core/var/log/ansible/vault_access.log"

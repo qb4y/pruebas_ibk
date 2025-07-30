@@ -1,0 +1,49 @@
+---
+# tasks file for check_bak_folder
+
+- name: Obtain information about C:\Windows\SoftwareDistribution.bak
+  win_stat:
+    path: C:\Windows\SoftwareDistribution.bak
+  register: folder_info
+
+- name: Obtain information about original C:\Windows\SoftwareDistribution
+  win_stat:
+    path: C:\Windows\SoftwareDistribution
+  register: original_folder_info
+
+- name: Stop Windows update services
+  win_service:
+    name: wuauserv
+    state: stopped
+  when:
+    - folder_info.stat.exists | bool
+    - original_folder_info.stat.size == 0
+
+- name: Delete folder
+  win_file:
+    path: C:\Windows\SoftwareDistribution
+    state: absent
+  when:
+    - folder_info.stat.exists | bool
+    - original_folder_info.stat.size == 0
+
+- name: Rename Folder
+  win_shell: Rename-Item C:\Windows\SoftwareDistribution.bak C:\Windows\SoftwareDistribution
+  when:
+    - folder_info.stat.exists | bool
+    - original_folder_info.stat.size == 0
+
+- name: Start Windows update services
+  win_service:
+    name: wuauserv
+    state: started
+  when:
+    - folder_info.stat.exists | bool
+    - original_folder_info.stat.size == 0
+
+- name: bak folder present but was not removed
+  debug:
+    msg: "SoftwareDistribution.bak folder present, original SoftwareDistribution not empty. No folder was deleted"
+  when:
+    - folder_info.stat.exists | bool
+    - original_folder_info.stat.size != 0

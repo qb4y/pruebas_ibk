@@ -1,0 +1,19 @@
+---
+## Data Mapper Universal - Redirección por OS
+## Función: Redirigir a data mappers específicos según vm_ostype
+
+- name: "Determinar sistema operativo"
+  ansible.builtin.set_fact:
+    es_windows: "{{ vm_ostype == 'windows' }}"
+    es_linux: "{{ vm_ostype == 'linux' }}"
+  tags: [data_mapper, os_detection]
+
+- name: "Ejecutar data mapping Windows"
+  ansible.builtin.include_tasks: windows/data_mapping_windows.yml
+  when: es_windows
+  tags: [data_mapper, windows]
+
+- name: "Ejecutar data mapping Linux"
+  ansible.builtin.include_tasks: linux/data_mapping_linux.yml
+  when: es_linux
+  tags: [data_mapper, linux] 

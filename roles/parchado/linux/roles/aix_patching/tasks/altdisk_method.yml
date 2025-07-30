@@ -1,0 +1,479 @@
+---
+
+- name: Run pre patching steps
+  ansible.builtin.include_tasks: pre_patching_steps.yml
+
+- name: Mount NFS volume
+  ansible.builtin.include_tasks: mount_nfs.yml
+  when:
+    - disk_validation
+    - fs_space_validation
+    - continue_execution
+    - nfs_path | length > 0
+
+- name: Clone rootvg
+  when:
+    - disk_validation
+    - fs_space_validation
+    - continue_execution
+  block:
+
+    - name: Clone rootvg to the free disk
+      ansible.builtin.command: alt_disk_copy -P 1 -d {{ free_disk }}
+      register: clone_rootvg
+      changed_when: true
+
+  rescue:
+
+    - name:
+        Return code generation in case of
+        rootvg cloning failure
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5038
+        rc_message:
+          "{{ root_vg_name }} cloning has failed.
+          Further investigation is required by the developer."
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          {{ root_vg_name }} cloning has failed.\n\n
+          Below is the error message:\n\n
+          {{ clone_rootvg.stderr }}\n\n
+          Aborting the patching process.\n\n"
+
+    - name: Unmount NFS volume
+      ansible.builtin.include_tasks: unmount_nfs.yml
+      when:
+        - nfs_path | length > 0
+        - mount_success
+        - unmount_nfs_after_patching
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "{{ root_vg_name }} cloning has failed."
+      when: fail_on_error | bool
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Uninstall locking efix
+  when:
+    - remove_locking_efixes
+    - disk_validation
+    - fs_space_validation
+    - continue_execution
+  block:
+
+    - name: Check if any efix is locking any filesets  # noqa risky-shell-pipe
+      ansible.builtin.shell: |
+        emgr -P | tail -n +4 | awk '{print $3}' | sort -u
+      register: locking_efix
+      changed_when: false
+
+    - name: Uninstall locking efix
+      ansible.builtin.command: chroot /alt_inst /usr/sbin/emgr -r -L {{ item }}
+      loop: "{{ locking_efix.stdout_lines }}"
+      when: locking_efix.stdout
+      changed_when: true
+      environment:
+        INUCLIENTS: '1'
+
+    - name: Locking efix uninstalled successfully
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Below locking efix have been uninstalled successfully:\n\n
+          {{ locking_efix.stdout_lines }}\n\n"
+      when: locking_efix.stdout
+
+  rescue:
+
+    - name:
+        Return code generation in case of
+        uninstall locking efix command failure
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5024
+        rc_message:
+          "Uninstall locking efix command has failed.
+          Further investigation is required by the developer."
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Uninstall locking efix command has failed.\n\n
+          Aborting the patching process.\n\n"
+
+    - name: Unmount NFS volume
+      ansible.builtin.include_tasks: unmount_nfs.yml
+      when:
+        - nfs_path | length > 0
+        - mount_success
+        - unmount_nfs_after_patching
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Uninstall locking efix command has failed."
+      when: fail_on_error | bool
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Perform OS update
+  when:
+    - disk_validation
+    - fs_space_validation
+    - continue_execution
+  block:
+
+    - name: Perform OS update
+      ansible.builtin.shell: >
+        alt_disk_install -C -P 2 -b update_all -I agXY -l
+        {{ patching_filesets_location }} {{ free_disk }}
+      register: os_update
+      changed_when: true
+
+    - name: Get OS level
+      ansible.builtin.command: chroot /alt_inst /usr/bin/oslevel -s
+      register: post_patch_oslevel
+      changed_when: false
+
+    - name: Set os_update_verification flag
+      ansible.builtin.set_fact:
+        os_update_verification: true
+      when:
+        - os_update.rc == 0
+        - "'install_all_updates: Result = SUCCESS' in os_update.stdout"
+
+    - name: OS update successful
+      when: os_update_verification
+      block:
+
+        - name: Set exec_message
+          ansible.builtin.set_fact:
+            exec_message:
+              "{{ exec_message }}
+              OS update has been successful.\n\n"
+
+        - name: Set returncode
+          ansible.builtin.include_role:
+            name: returncode
+          vars:
+            rc_success: true
+
+    - name: OS update failed
+      ansible.builtin.fail:
+        msg: "OS update has failed."
+      when: not os_update_verification
+
+  rescue:
+
+    - name:
+        Return code generation in case of
+        OS update command failure
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5025
+        rc_message:
+          "OS update has failed.
+          Further investigation is required by the developer."
+
+    - name: Set exec_message and os_update_verification flag
+      ansible.builtin.set_fact:
+        os_update_verification: false
+        exec_message:
+          "{{ exec_message }}
+          OS update has failed.\n\n"
+
+    - name: Unmount NFS volume
+      ansible.builtin.include_tasks: unmount_nfs.yml
+      when:
+        - nfs_path | length > 0
+        - mount_success
+        - unmount_nfs_after_patching
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "OS update has failed."
+      when: fail_on_error | bool
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Apply efixes
+  when:
+    - efix_filesets_location | length
+    - continue_execution
+  block:
+
+    - name: Fetch list of efixes to be applied
+      ansible.builtin.find:
+        paths: "{{ efix_filesets_location }}"
+        patterns: "*epkg.Z"
+      register: efix_list
+      changed_when: false
+
+    - name: Concatenate efix list
+      ansible.builtin.set_fact:
+        efix_list_concat:
+          "{{ efix_list_concat + ' ' + 'E:' + item.path
+          | regex_replace('^.*/(.*)$', '\\1') }}"
+      loop: "{{ efix_list.files }}"
+      when: efix_list.matched | int != 0
+
+    - name: Apply efixes
+      ansible.builtin.shell: >
+        alt_disk_copy -l {{ efix_filesets_location }}
+        -w "{{ efix_list_concat | trim }}" -P 2 -d {{ free_disk }}
+      when: efix_list.matched | int != 0
+      changed_when: true
+
+    - name: Applying efixes successful
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Successfully applied below efixes:\n\n
+          {{ efix_list_concat }}\n\n"
+      when: efix_list.matched | int != 0
+
+  rescue:
+
+    - name:
+        Return code generation in case of
+        applying efixes fails
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5040
+        rc_message:
+          "Applying efixes has failed.
+          Further investigation is required by the developer"
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Applying efixes has failed.\n\n
+          Aborting the patching process.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Applying efixes failed"
+      when: fail_on_error | bool
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Disable altinst_rootvg
+  when: continue_execution
+  block:
+
+    - name: Disable altinst_rootvg
+      ansible.builtin.command: alt_disk_install -P 3 -C {{ free_disk }} -B
+      register: disable_altinst_rootvg
+      changed_when: true
+
+  rescue:
+
+    - name:
+        Return code generation in case of failure
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5023
+        rc_message:
+          "Disabling altinst_rootvg has failed.
+          Further investigation is required by the developer"
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Disabling altinst_rootvg has failed.\n\n
+          Below is the error message:\n\n
+          {{ disable_altinst_rootvg.stderr }}\n\n
+          Aborting the patching process.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Disabling altinst_rootvg has failed"
+      when: fail_on_error | bool
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Bootlist addition
+  when:
+    - disk_validation
+    - fs_space_validation
+    - os_update_verification
+    - continue_execution
+  block:
+
+    - name: Set bootlist to add free disk
+      ansible.builtin.shell: >
+        bootlist -m normal {{ free_disk }}
+      register: bootlist_add
+      changed_when: true
+
+    - name: Verify bootlist addition
+      ansible.builtin.command: bootlist -m normal -o
+      register: bootlist_addition_check
+      changed_when: false
+
+    - name: Bootlist addition verification
+      ansible.builtin.set_fact:
+        bootlist_addition_verification: true
+      when:
+        - bootlist_add.rc == 0
+        - free_disk in bootlist_addition_check.stdout
+
+    - name: Bootlist addition successful
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          {{ free_disk }} disk has been added to boot devices list.\n\n"
+      when: bootlist_addition_verification
+
+    - name: Bootlist addition failed
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          bootlist addition of {{ free_disk }} disk has failed.\n\n"
+      when: not bootlist_addition_verification
+
+  rescue:
+
+    - name:
+        Return code generation in case of
+        bootlist addition command failure
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5026
+        rc_message:
+          "bootlist addition command has failed.
+          Further investigation is required by the developer."
+
+    - name: Set exec_message and bootlist_addition_verification flag
+      ansible.builtin.set_fact:
+        bootlist_addition_verification: false
+        exec_message:
+          "{{ exec_message }}
+          bootlist addition command has failed.\n\n"
+
+    - name: Unmount NFS volume
+      ansible.builtin.include_tasks: unmount_nfs.yml
+      when:
+        - nfs_path | length > 0
+        - mount_success
+        - unmount_nfs_after_patching
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "bootlist addition command has failed."
+      when: fail_on_error | bool
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Run post patching steps
+  ansible.builtin.include_tasks: post_patching_steps.yml
+  when:
+    - disk_validation
+    - fs_space_validation
+    - os_update_verification
+    - bootlist_addition_verification
+    - continue_execution
+
+- name: Unmount NFS volume
+  ansible.builtin.include_tasks: unmount_nfs.yml
+  when:
+    - nfs_path | length > 0
+    - mount_success
+    - unmount_nfs_after_patching

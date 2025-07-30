@@ -1,0 +1,20 @@
+---
+# Módulo: Mostrar Configuración Windows
+# Función: Solo mostrar configuración antes de crear VM
+
+- name: "Mostrar configuración antes de crear VM"
+  ansible.builtin.debug:
+    msg:
+      - "ROL MAESTRO TURCO: CREAR VM DESDE TEMPLATE"
+      - "=========================================="
+      - "Hostname: {{ customization.hostname }}"
+      - "IP: {{ networks[0].ip }}"
+      - "DNS: {{ customization.dns_servers | join(', ') }}"
+      - "Template: {{ vm_template }}"
+      - "Datacenter: {{ datacenter }}"
+      - "Cluster: {{ cluster }}"
+      - "Datastore: {{ datastore }}"
+      - "Convert: {{ disk_type | default('thin') }}"
+      - "Folder: /{{ datacenter }}/vm/{{ folder }}"
+      - "=========================================="
+  tags: [mostrar_config] 

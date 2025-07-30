@@ -1,0 +1,74 @@
+---
+- name: "Obtener información de la VM creada"
+  community.vmware.vmware_guest_info:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: "{{ validate_certs | default(false) }}"
+    datacenter: "{{ datacenter }}"
+    name: "{{ vm_hostname }}"
+    schema: vsphere
+  register: vm_info_final
+  tags: [verificar_conectividad, post_tasks]
+
+- name: "Verificar conectividad SSH"
+  ansible.builtin.wait_for:
+    host: "{{ vm_info_final.instance.ipv4 | default('') }}"
+    port: 22
+    timeout: 30
+    state: started
+  register: conectividad_ssh
+  failed_when: false
+  when:
+    - vm_info_final.instance.ipv4 is defined
+    - vm_info_final.instance.ipv4 != ""
+  tags: [verificar_conectividad, post_tasks]
+
+- name: "Verificar conectividad RDP para Windows"
+  ansible.builtin.wait_for:
+    host: "{{ vm_info_final.instance.ipv4 | default('') }}"
+    port: 3389
+    timeout: 30
+    state: started
+  register: conectividad_rdp
+  failed_when: false
+  when:
+    - vm_info_final.instance.ipv4 is defined
+    - vm_info_final.instance.ipv4 != ""
+    - vm_ostype | default('linux') == 'windows'
+  tags: [verificar_conectividad, post_tasks]
+
+- name: "Verificar conectividad mediante ping"
+  ansible.builtin.shell: "ping -c 3 {{ vm_info_final.instance.ipv4 | default('') }}"
+  register: ping_result
+  failed_when: false
+  when:
+    - vm_info_final.instance.ipv4 is defined
+    - vm_info_final.instance.ipv4 != ""
+  tags: [verificar_conectividad, post_tasks]
+
+- name: "Establecer facts de conectividad"
+  ansible.builtin.set_fact:
+    conectividad_final:
+      vm_hostname: "{{ vm_hostname }}"
+      ip_asignada: "{{ vm_info_final.instance.ipv4 | default('Sin IP') }}"
+      ssh_disponible: "{{ conectividad_ssh.state | default('timeout') == 'started' }}"
+      rdp_disponible: "{{ conectividad_rdp.state | default('timeout') == 'started' if vm_ostype == 'windows' else false }}"
+      ping_exitoso: "{{ ping_result.rc | default(1) == 0 }}"
+      vm_encendida: "{{ vm_info_final.instance.runtime.powerState | default('') == 'poweredOn' }}"
+      tools_instaladas: "{{ vm_info_final.instance.guest_tools_status | default('') == 'toolsOk' }}"
+      timestamp: "{{ ansible_date_time.iso8601 }}"
+  tags: [verificar_conectividad, post_tasks]
+
+- name: "Mostrar resumen de conectividad"
+  ansible.builtin.debug:
+    msg:
+      - "VERIFICACIÓN DE CONECTIVIDAD FINAL"
+      - "VM: {{ conectividad_final.vm_hostname }}"
+      - "IP: {{ conectividad_final.ip_asignada }}"
+      - "Estado VM: {{ 'ENCENDIDA' if conectividad_final.vm_encendida else 'APAGADA' }}"
+      - "VMware Tools: {{ 'OK' if conectividad_final.tools_instaladas else 'NO OK' }}"
+      - "Ping: {{ 'OK' if conectividad_final.ping_exitoso else 'FALLÓ' }}"
+      - "SSH (22): {{ 'DISPONIBLE' if conectividad_final.ssh_disponible else 'NO DISPONIBLE' }}"
+      - "RDP (3389): {{ 'DISPONIBLE' if conectividad_final.rdp_disponible else 'NO DISPONIBLE' }}"
+  tags: [verificar_conectividad, post_tasks]

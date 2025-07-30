@@ -1,0 +1,213 @@
+---
+
+- name: Calculate threshold for /var
+  when: ansible_distribution != "Ubuntu"
+  block:
+
+    - name: Set command for update_all and rcp_all
+      ansible.builtin.set_fact:
+        threshold_calc:
+          "{% if 'SLE' in ansible_distribution
+          %}zypper patch -yD{% else %}echo 'N'
+          | yum update | awk -F: '/^Total download size/
+          { print $2 }'{% endif %}"
+      when:
+        - patch_type != "bugfix_all"
+        - patch_type != "security_all"
+
+    - name: Set command for bugfix_all
+      ansible.builtin.set_fact:
+        threshold_calc:
+          "{% if 'SLE' in ansible_distribution
+          %}zypper patch --category bugfix -yD{%
+          else %}echo 'N' | yum update --bugfix |
+          awk -F: '/^Total download size/ { print $2 }'{% endif %}"
+      when:
+        - patch_type == "bugfix_all"
+
+    - name: Set command for security_all
+      ansible.builtin.set_fact:
+        threshold_calc:
+          "{% if 'SLE' in ansible_distribution
+          %}zypper patch --category security -yD{%
+          else %}echo 'N' | yum update --security |
+          awk -F: '/^Total download size/ { print $2 }'{% endif %}"
+      when:
+        - patch_type == "security_all"
+
+    - name: Get patch size in MBs
+      ansible.builtin.command: "{{ threshold_calc }}"
+      register: patch_size
+      changed_when: false
+      failed_when: false
+
+    - name: Calculate threshold - Suse
+      when:
+        - "'SLE' in ansible_distribution"
+        - "'download size' in item"
+      ansible.builtin.set_fact:
+        var_threshold:
+          "{{ item | regex_replace('.*?([\\d\\.]+).*', '\\1')
+          | int * 1.25 * 1024 }}"
+      loop: "{{ patch_size.stdout_lines }}"
+
+    - name: Calculate threshold - Other distributions
+      when: "'SLE' not in ansible_distribution"
+      ansible.builtin.set_fact:
+        var_threshold:
+          "{{ patch_size.stdout | regex_replace('.*?([\\d\\.]+).*', '\\1')
+          | int * 1.25 * 1024 }}"
+
+  rescue:
+
+    - name: Return code generation in case of get patch size command failure
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5001
+        rc_message:
+          "The command to get the patch size has failed.
+          Further investigation is required by the developer."
+
+    - name: Update exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          The command to get the patch size has failed.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "The command to get the patch size has failed"
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Validate filesystem space usage
+  when: continue_execution
+  block:
+
+    - name: Validate space on /var filesystem
+      when: ansible_distribution != "Ubuntu"
+      block:
+
+        - name: Get available space on /var filesystem  # noqa risky-shell-pipe
+          ansible.builtin.shell: |
+            df -Pk /var | tail -1 | awk '{print $4}'
+          register: free_space_var
+          changed_when: false
+
+        - name: Validate space on /var filesystem
+          ansible.builtin.set_fact:
+            space_validation_var: false
+          when: free_space_var.stdout | int < var_threshold | int
+
+        - name: Space validation failed for var filesystem
+          ansible.builtin.set_fact:
+            exec_message:
+              "{{ exec_message }}
+              Free space on var filesystem is less than
+              {{ var_threshold }}.\n\n"
+          when: not space_validation_var
+
+    - name:
+        Get used space percentage for other
+        filesystems  # noqa risky-shell-pipe
+      ansible.builtin.shell: |
+        df -Pk {{ item }} | tail -1 | awk '{print $5}' | cut -d'%' -f1
+      register: used_space
+      loop: "{{ filesystems_to_check }}"
+      changed_when: false
+
+    - name: Validate space
+      ansible.builtin.set_fact:
+        space_validation: false
+      when: item.stdout | int > 100-other_fs_space_threshold_perc
+      loop: "{{ used_space.results }}"
+
+    - name: Space validation failed
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Free space on one of the below filesystems is less than
+          {{ other_fs_space_threshold_perc }}%\n\n
+          {{ filesystems_to_check }}.\n\n"
+      when: not space_validation
+
+    - name: Get available space on boot filesystem  # noqa risky-shell-pipe
+      ansible.builtin.shell: |
+        df -Pk /boot | tail -1 | awk '{print $4}'
+      register: free_space_boot
+      changed_when: false
+
+    - name: Validate space on boot filesystem
+      ansible.builtin.set_fact:
+        space_validation_boot: false
+      when: free_space_boot.stdout | int < boot_space_threshold_mb*1024 | int
+
+    - name: Space validation failed for boot filesystem
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Free space on boot filesystem is less than
+          {{ boot_space_threshold_mb }}MB.\n\n"
+      when: not space_validation_boot
+
+  rescue:
+
+    - name: Return code generation in case of
+            filesystem space usage check command failure
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5002
+        rc_message:
+          "The command to verify filesystem space usage has failed.
+          Further investigation is required by the developer."
+
+    - name: Set validation flags and message
+      ansible.builtin.set_fact:
+        space_validation_var: false
+        space_validation: false
+        space_validation_boot: false
+        exec_message:
+          "{{ exec_message }}
+          Unable to fetch free space on one of the filesystems.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Unable to fetch free space on one of the filesystems"
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false

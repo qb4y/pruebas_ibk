@@ -1,0 +1,73 @@
+---
+- name: Install specific package
+  block:
+
+    - name: Install specific package  # noqa command-instead-of-module
+      ansible.builtin.command: yum -y update --advisory="{{ item }}"
+      register: patch_result_elsa
+      async: "{{ async_value }}"
+      poll: "{{ poll_value }}"
+      changed_when: true
+
+  rescue:
+
+    - name: Return code incase of Oracle Linux specific patch fails
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5012
+        rc_message: "Oracle Linux specific patching failed."
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Oracle Linux specific patching failed."
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Specific packages installation status
+  when:
+    - patch_result_elsa is not skipped
+    - patch_result_elsa.rc == 0
+  block:
+
+    - name: Set returncode
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_success: true
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        patch_status: 'success'
+        exec_message:
+          "{{ exec_message }}
+          Patching result:\n\n
+          Patches installed successfully.\n\n"
+
+- name: Specific packages installation status
+  ansible.builtin.set_fact:
+    patch_status: 'failure'
+    exec_message:
+      "{{ exec_message }}
+      Patching result:\n\n
+      Patch installation FAILED, please perform patching manually.\n\n"
+  when:
+    - patch_result_elsa is not skipped
+    - patch_result_elsa.rc != 0

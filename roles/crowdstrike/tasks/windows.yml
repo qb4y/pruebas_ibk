@@ -1,0 +1,384 @@
+---
+- name: 🧠 Recolectar facts si no están presentes (Windows)
+  ansible.builtin.setup:
+  when: ansible_os_family is not defined
+
+- name: Definir rutas de instalación
+  set_fact:
+    local_dir: "C:\\Temp"
+    installer_name: "WindowsSensor.MaverickGyr.exe"
+    cert_names:
+      - "DigiCertHighAssuranceEVRootCA.crt"
+      - "DigiCertAssuredIDRootCA.crt"
+
+- name: Definir rutas completas
+  set_fact:
+    local_installer_path: "{{ local_dir }}\\{{ installer_name }}"
+
+# VERIFICACIÓN DE INSTALACIÓN PREVIA
+- name: Verificar si CrowdStrike ya está instalado (método múltiple)
+  win_shell: |
+    # Método 1: Verificar servicios de CrowdStrike
+    $services = Get-Service -Name "CSAgent","CSFalconService" -ErrorAction SilentlyContinue
+    $servicesFound = $services.Count -gt 0
+    
+    # Método 2: Verificar registro de instalación
+    $regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*"
+    $regInstalled = Get-ItemProperty $regPath | Where-Object { $_.DisplayName -like '*CrowdStrike*' -or $_.DisplayName -like '*Falcon*' }
+    $regFound = $regInstalled -ne $null
+    
+    # Método 3: Verificar archivos del sistema
+    $falconPath = "C:\Windows\System32\drivers\CrowdStrike"
+    $filesFound = Test-Path $falconPath
+    
+    # Método 4: Verificar procesos
+    $processes = Get-Process -Name "*falcon*","*crowdstrike*" -ErrorAction SilentlyContinue
+    $processFound = $processes.Count -gt 0
+    
+    Write-Output "Services: $servicesFound"
+    Write-Output "Registry: $regFound" 
+    Write-Output "Files: $filesFound"
+    Write-Output "Processes: $processFound"
+    
+    if ($servicesFound -or $regFound -or $filesFound -or $processFound) {
+      Write-Output "INSTALLED"
+      if ($regInstalled) {
+        $regInstalled | Select-Object DisplayName, DisplayVersion | Format-List
+      }
+      if ($services) {
+        $services | Select-Object Name, Status | Format-List
+      }
+    } else {
+      Write-Output "NOT_INSTALLED"
+    }
+  register: crowdstrike_check
+  args:
+    executable: powershell.exe
+
+- name: Mostrar estado de instalación actual
+  debug:
+    msg: |
+      🔍 Estado de CrowdStrike: {{ 'Ya instalado' if 'INSTALLED' in crowdstrike_check.stdout else 'No instalado' }}
+      📋 Detalles: {{ crowdstrike_check.stdout }}
+
+- name: Marcar que CrowdStrike ya está instalado
+  set_fact:
+    crowdstrike_already_installed: true
+  when: "'INSTALLED' in crowdstrike_check.stdout"
+
+- name: Marcar que CrowdStrike NO está instalado
+  set_fact:
+    crowdstrike_already_installed: false
+  when: "'NOT_INSTALLED' in crowdstrike_check.stdout"
+
+# PROCESO DE INSTALACIÓN (Solo si no está instalado)
+- name: Crear carpeta local para instaladores
+  win_file:
+    path: "{{ local_dir }}"
+    state: directory
+  when: not crowdstrike_already_installed
+
+- name: Verificar si el instalador ya existe
+  win_stat:
+    path: "{{ local_installer_path }}"
+  register: installer_exists
+  when: not crowdstrike_already_installed
+
+- name: Mostrar información de descarga
+  debug:
+    msg: |
+      🔗 URL pre-firmada: {{ crowdstrike_installer_url }}
+      📁 Destino: {{ local_installer_path }}
+      ⏰ URL expira en 10 minutos
+  when: not crowdstrike_already_installed
+
+- name: Descargar instalador CrowdStrike desde MinIO (URL pre-firmada)
+  win_get_url:
+    url: "{{ crowdstrike_installer_url }}"
+    dest: "{{ local_installer_path }}"
+    timeout: 300
+    follow_redirects: all
+  register: download_result
+  when: 
+    - not crowdstrike_already_installed
+    - not installer_exists.stat.exists or (installer_exists.stat.size < 10000000)
+
+- name: Mostrar resultado de descarga
+  debug:
+    msg: |
+      📥 Descarga: {{ 'Exitosa' if download_result.changed else 'Omitida' }}
+      📊 Estado: {{ download_result.status_code | default('N/A') }}
+      📏 Tamaño: {{ download_result.size | default('N/A') }} bytes
+  when: not crowdstrike_already_installed
+
+# Descargar certificados desde MinIO usando URLs pre-firmadas
+- name: Descargar certificados desde MinIO (URLs pre-firmadas)
+  win_get_url:
+    url: "{{ item }}"
+    dest: "{{ local_dir }}\\{{ cert_names[ansible_loop.index0] }}"
+    timeout: 60
+    follow_redirects: all
+  loop: "{{ crowdstrike_cert_urls }}"
+  loop_control:
+    extended: true
+  register: cert_downloads
+  when: 
+    - crowdstrike_cert_urls | length > 0
+    - not crowdstrike_already_installed
+
+- name: Mostrar resultado de descarga de certificados
+  debug:
+    msg: |
+      📥 Certificado {{ ansible_loop.index }}: {{ 'Descargado' if item.changed else 'Ya existía' }}
+      📁 Ruta: {{ local_dir }}\{{ cert_names[ansible_loop.index0] }}
+  loop: "{{ cert_downloads.results | default([]) }}"
+  loop_control:
+    extended: true
+  when: 
+    - crowdstrike_cert_urls | length > 0
+    - not crowdstrike_already_installed
+
+- name: Verificar descarga del instalador
+  win_stat:
+    path: "{{ local_installer_path }}"
+  register: installer_final_check
+  when: not crowdstrike_already_installed
+
+- name: Validar que el instalador es real
+  ansible.builtin.fail:
+    msg: |
+      ❌ Error: No se pudo descargar un instalador válido desde MinIO
+      📏 Tamaño: {{ installer_final_check.stat.size | default(0) }} bytes 
+      🔍 Verifica que los archivos existan en MinIO y que las URLs no hayan expirado
+      ⏰ Las URLs pre-firmadas expiran en 10 minutos
+  when: 
+    - not crowdstrike_already_installed
+    - not installer_final_check.stat.exists or installer_final_check.stat.size < 10000000
+
+- name: Verificar si certificados fueron descargados
+  win_stat:
+    path: "{{ local_dir }}\\{{ item }}"
+  loop: "{{ cert_names }}"
+  register: cert_files_check
+  when: 
+    - crowdstrike_cert_urls | length > 0
+    - not crowdstrike_already_installed
+
+- name: Mostrar estado de archivos de certificados
+  debug:
+    msg: |
+      📜 Certificado: {{ item.item }}
+      ✅ Existe: {{ 'Sí' if item.stat.exists else 'No' }}
+      📏 Tamaño: {{ item.stat.size | default('N/A') }} bytes
+  loop: "{{ cert_files_check.results | default([]) }}"
+  when: 
+    - crowdstrike_cert_urls | length > 0
+    - not crowdstrike_already_installed
+
+# INSTALACIÓN DE CERTIFICADOS COMENTADA - Causan colgado pero no son necesarios
+- name: Saltar instalación de certificados (por ahora)
+  debug:
+    msg: |
+      🔄 Saltando instalación de certificados en el Certificate Store
+      📜 Archivos descargados pero no instalados (Windows ya tiene DigiCert)
+      ⚡ Esto evita el colgado en win_certificate_store
+      📁 Certificados disponibles en: {{ local_dir }}
+      💡 Para reactivar: descomenta las tareas de instalación más abajo
+  when: not crowdstrike_already_installed
+
+# - name: Instalar certificados en Certificate Store
+#   win_certificate_store:
+#     path: "{{ local_dir }}\\{{ item }}"
+#     store_location: LocalMachine
+#     store_name: Root
+#     state: present
+#   loop: "{{ cert_names }}"
+#   ignore_errors: true
+#   when: 
+#     - crowdstrike_cert_urls | length > 0
+#     - not crowdstrike_already_installed
+
+- name: Instalar CrowdStrike Falcon Sensor
+  win_package:
+    path: "{{ local_installer_path }}"
+    arguments: '/install /quiet /norestart CID={{ crowdstrike_customer_id }}'
+    state: present
+  register: install_result
+  failed_when: false  # No fallar automáticamente, manejaremos los errores manualmente
+  when: not crowdstrike_already_installed
+
+- name: Analizar resultado de instalación
+  debug:
+    msg: |
+      📊 Código de retorno: {{ install_result.rc | default('N/A') }}
+      📝 Mensaje: {{ install_result.msg | default('N/A') }}
+      📤 Stdout: {{ install_result.stdout | default('Vacío') }}
+      📤 Stderr: {{ install_result.stderr | default('Vacío') }}
+      🔄 Reinicio requerido: {{ install_result.reboot_required | default(false) }}
+  when: 
+    - not crowdstrike_already_installed
+    - install_result is defined
+
+- name: Evaluar códigos de error de instalación
+  set_fact:
+    installation_success: >-
+      {{
+        install_result.rc == 0 or
+        install_result.rc == 24578 or
+        install_result.rc == 3010 or
+        install_result.rc == 1641
+      }}
+  when: 
+    - not crowdstrike_already_installed
+    - install_result is defined
+
+- name: Mostrar interpretación del código de error
+  debug:
+    msg: |
+      🔍 Interpretación del código {{ install_result.rc | default('N/A') }}:
+      {% if install_result.rc == 0 %}
+      ✅ Instalación exitosa
+      {% elif install_result.rc == 24578 %}
+      ⚠️  Ya existe una instalación (esto es normal si CrowdStrike ya estaba parcialmente instalado)
+      {% elif install_result.rc == 3010 %}
+      ⚠️  Instalación exitosa - Reinicio pendiente
+      {% elif install_result.rc == 1641 %}
+      ⚠️  Instalación exitosa - Reinicio iniciado por el instalador
+      {% else %}
+      ❌ Error desconocido - Código: {{ install_result.rc }}
+      {% endif %}
+  when: 
+    - not crowdstrike_already_installed
+    - install_result is defined
+
+- name: Validar instalación exitosa
+  fail:
+    msg: |
+      ❌ Falló la instalación de CrowdStrike Falcon Sensor.
+      📊 Código de retorno: {{ install_result.rc | default('N/A') }}
+      📝 Mensaje: {{ install_result.msg | default('N/A') }}
+      💡 Revisa los logs del sistema para más detalles.
+  when: 
+    - not crowdstrike_already_installed
+    - install_result is defined
+    - not installation_success
+
+- name: Mostrar mensaje si ya estaba instalado
+  debug:
+    msg: |
+      ✅ CrowdStrike ya estaba instalado en este servidor
+      🔄 Saltando proceso de instalación
+      📋 Procediendo a verificar servicios...
+  when: crowdstrike_already_installed
+
+- name: Esperar a que los servicios se inicialicen
+  ansible.builtin.pause:
+    seconds: 10
+  when: not crowdstrike_already_installed
+
+# VERIFICACIÓN DE SERVICIOS (Siempre se ejecuta)
+- name: Verificar servicios de CrowdStrike
+  win_shell: |
+    # Buscar todos los servicios relacionados con CrowdStrike/Falcon
+    $allServices = Get-Service -ErrorAction SilentlyContinue | Where-Object { 
+      $_.Name -like '*crowdstrike*' -or 
+      $_.Name -like '*falcon*' -or 
+      $_.Name -like '*cs*' -or
+      $_.DisplayName -like '*crowdstrike*' -or 
+      $_.DisplayName -like '*falcon*'
+    }
+    
+    # Servicios específicos que esperamos
+    $csAgent = Get-Service -Name 'CSAgent' -ErrorAction SilentlyContinue
+    $csFalcon = Get-Service -Name 'CSFalconService' -ErrorAction SilentlyContinue
+    
+    Write-Output '=== SERVICIOS CROWDSTRIKE ENCONTRADOS ==='
+    if ($allServices) {
+      $allServices | Select-Object Name, DisplayName, Status | Format-Table -AutoSize
+    } else {
+      Write-Output 'No se encontraron servicios de CrowdStrike'
+    }
+    
+    Write-Output '=== SERVICIOS ESPECÍFICOS ==='
+    if ($csAgent) {
+      Write-Output "CSAgent: $($csAgent.Status)"
+    } else {
+      Write-Output 'CSAgent: NOT_FOUND'
+    }
+    
+    if ($csFalcon) {
+      Write-Output "CSFalconService: $($csFalcon.Status)"
+    } else {
+      Write-Output 'CSFalconService: NOT_FOUND'
+    }
+    
+    # Determinar si los servicios están funcionando
+    $servicesRunning = ($csAgent -and $csAgent.Status -eq 'Running') -or 
+                      ($csFalcon -and $csFalcon.Status -eq 'Running') -or
+                      ($allServices | Where-Object { $_.Status -eq 'Running' }).Count -gt 0
+    
+    Write-Output "SERVICES_STATUS: $servicesRunning"
+  register: crowdstrike_services_check
+  args:
+    executable: powershell.exe
+
+- name: Mostrar estado de servicios
+  debug:
+    msg: |
+      🔍 Verificación de servicios de CrowdStrike:
+      {{ crowdstrike_services_check.stdout }}
+
+- name: Evaluar estado de servicios
+  set_fact:
+    services_running: "{{ 'True' in crowdstrike_services_check.stdout }}"
+
+- name: Verificación post-instalación (método múltiple)
+  win_shell: |
+    # Re-verificar después de la instalación
+    $services = Get-Service -Name 'CSAgent','CSFalconService' -ErrorAction SilentlyContinue
+    $servicesFound = $services.Count -gt 0
+    
+    $regPath = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*'
+    $regInstalled = Get-ItemProperty $regPath | Where-Object { $_.DisplayName -like '*CrowdStrike*' -or $_.DisplayName -like '*Falcon*' }
+    $regFound = $regInstalled -ne $null
+    
+    $falconPath = 'C:\Windows\System32\drivers\CrowdStrike'
+    $filesFound = Test-Path $falconPath
+    
+    Write-Output "POST_INSTALL_CHECK:"
+    Write-Output "Services: $servicesFound"
+    Write-Output "Registry: $regFound" 
+    Write-Output "Files: $filesFound"
+    
+    $isInstalled = $servicesFound -or $regFound -or $filesFound
+    Write-Output "CROWDSTRIKE_DETECTED: $isInstalled"
+  register: post_install_check
+  args:
+    executable: powershell.exe
+
+- name: Mostrar verificación post-instalación
+  debug:
+    msg: |
+      🔍 Verificación post-instalación:
+      {{ post_install_check.stdout }}
+
+- name: Validar estado de los servicios
+  fail:
+    msg: |
+      ❌ Los servicios de CrowdStrike no están corriendo correctamente.
+      🔍 Detalles servicios: {{ crowdstrike_services_check.stdout }}
+      � Verificación post-instalación: {{ post_install_check.stdout }}
+      �💡 Puede que CrowdStrike necesite más tiempo para inicializar o un reinicio del sistema.
+      📋 Código de instalación: {{ install_result.rc | default('N/A') }} (24578 = ya existe instalación)
+  when: 
+    - not services_running
+    - "'True' not in post_install_check.stdout"
+
+- name: ✅ Confirmación de instalación exitosa
+  debug:
+    msg: |
+      ✅ CrowdStrike Falcon Sensor {{ 'ya estaba instalado y está' if crowdstrike_already_installed else 'instalado correctamente y' }} funcionando en {{ inventory_hostname }}
+      📊 Servicios: {{ 'Running' if services_running else 'No detectados en ejecución' }}
+      🔗 Consola: {{ crowdstrike_console_url }}
+      🆔 Customer ID: {{ crowdstrike_customer_id }}
+      💡 Si los servicios no aparecen como 'Running', puede requerir un reinicio del sistema.

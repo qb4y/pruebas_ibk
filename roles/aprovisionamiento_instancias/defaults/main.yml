@@ -1,0 +1,60 @@
+---
+# Configuración por defecto para aprovisionamiento de VMs
+
+# Credenciales vCenter
+vcenter_hostname: ""
+vcenter_username: ""
+vcenter_password: ""
+validate_certs: false
+
+# Configuración VM
+vm_hostname: ""
+datacenter: ""
+vm_template: ""
+datastore: ""
+cluster: ""
+folder: ""
+vm_ostype: "windows"
+
+# Hardware por defecto
+vm_memory: 4096
+vm_cpu: 2
+disk_type: "thin"
+
+# Estado y timeouts
+state: "powered-on"
+wait_for_customization: true
+wait_for_ip_address: true
+wait_for_ip_address_timeout: 600
+
+# Operaciones por defecto
+operaciones_habilitadas:
+  - crearVm
+  - vmGetInfo
+
+# Configuración de red
+vm_nics:
+  - vm_port_group: ""
+    device_type: "vmxnet3"
+    vm_ip_address: ""
+    vm_netmask: ""
+    vm_gateway: ""
+
+# DNS servers
+dns_servers:
+  - "8.8.8.8"
+  - "8.8.4.4"
+
+# Configuración específica Windows
+local_admin_password: ""
+timezone: "45"
+
+# Configuración específica Linux
+linux_admin_user: "root"
+linux_admin_password: ""
+timezone_linux: "America/Lima"
+hwclock_utc: true
+
+# Control de ejecución
+do_precheck: false
+annotation: "VM creada por Ansible - Rol Modularizado"

@@ -1,0 +1,13 @@
+---
+- name: Display reboot start message
+  debug:
+    msg: "Starting system reboot process"
+
+- name: Reboot the machine
+  ansible.windows.win_reboot:
+    post_reboot_delay: 180
+    reboot_timeout: 1800
+
+- name: Display reboot completion
+  debug:
+    msg: "System reboot completed successfully"

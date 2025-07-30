@@ -1,0 +1,130 @@
+---
+- name: "Recopilar información para reporte final"
+  ansible.builtin.set_fact:
+    reporte_informacion:
+      vm_hostname: "{{ vm_hostname }}"
+      timestamp_inicio: "{{ ansible_date_time.iso8601 }}"
+      operaciones_ejecutadas: "{{ operaciones_habilitadas | default([]) }}"
+      template_usado: "{{ vm_template | default('') }}"
+      datacenter_objetivo: "{{ datacenter | default('') }}"
+      cluster_objetivo: "{{ cluster | default('') }}"
+      datastore_objetivo: "{{ datastore | default('') }}"
+      ip_objetivo: "{{ vm_nics[0].vm_ip_address | default('') }}"
+      red_objetivo: "{{ vm_nics[0].vm_port_group | default('') }}"
+      resultado_aprovisionamiento: "{{ 'EXITOSO' if (exec_success | default(false)) else 'FALLIDO' }}"
+  tags: [reporte_final, post_tasks, recopilacion]
+
+- name: "Obtener información detallada de la VM final"
+  community.vmware.vmware_guest_info:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: "{{ validate_certs | default(false) }}"
+    datacenter: "{{ datacenter }}"
+    name: "{{ vm_hostname }}"
+    schema: vsphere
+  register: vm_info_detallada
+  failed_when: false
+  tags: [reporte_final, post_tasks, vm_info]
+
+- name: "Generar reporte ejecutivo"
+  ansible.builtin.set_fact:
+    reporte_ejecutivo:
+      resumen_ejecutivo:
+        resultado: "{{ reporte_informacion.resultado_aprovisionamiento }}"
+        vm_creada: "{{ vm_info_detallada.instance is defined }}"
+        vm_operativa: >
+          {{ (vm_info_detallada.instance.runtime.powerState | default('') == 'poweredOn') or
+             (vm_info_detallada.instance.hw_power_state | default('') == 'poweredOn') or
+             (vm_info_detallada.instance.power_state | default('') == 'POWERED_ON') }}
+        ip_asignada: "{{ vm_info_detallada.instance.ipv4 | default('Sin IP') }}"
+        tiempo_aprovisionamiento: "{{ ansible_date_time.iso8601 }}"
+        metodo_usado: "ROL MAESTRO TURCO MODULARIZADO"
+      
+      detalles_vm:
+        nombre: "{{ reporte_informacion.vm_hostname }}"
+        template_base: "{{ reporte_informacion.template_usado }}"
+        datacenter: "{{ reporte_informacion.datacenter_objetivo }}"
+        cluster: "{{ reporte_informacion.cluster_objetivo }}"
+        datastore: "{{ reporte_informacion.datastore_objetivo }}"
+        sistema_operativo: "{{ vm_ostype | default('Desconocido') }}"
+        estado_power: >
+          {{ vm_info_detallada.instance.runtime.powerState | default('') or
+             vm_info_detallada.instance.hw_power_state | default('') or
+             vm_info_detallada.instance.power_state | default('Desconocido') }}
+        memoria_mb: "{{ vm_info_detallada.instance.hw_memtotal_mb | default(0) }}"
+        cpu_count: "{{ vm_info_detallada.instance.hw_processor_count | default(0) }}"
+        tools_status: "{{ vm_info_detallada.instance.guest_tools_status | default('Desconocido') }}"
+        uuid: "{{ vm_info_detallada.instance.hw_product_uuid | default('') }}"
+      
+      configuracion_red:
+        ip_configurada: "{{ vm_info_detallada.instance.ipv4 | default('') }}"
+        ip_objetivo: "{{ reporte_informacion.ip_objetivo }}"
+        red_configurada: "{{ reporte_informacion.red_objetivo }}"
+        gateway: "{{ vm_nics[0].vm_gateway | default('') }}"
+        dns_servers: "{{ dns_servers | default([]) }}"
+        ip_match: "{{ (vm_info_detallada.instance.ipv4 | default('')) == (reporte_informacion.ip_objetivo) }}"
+      
+      operaciones_realizadas: "{{ reporte_informacion.operaciones_ejecutadas }}"
+      
+      conectividad:
+        vm_encendida: >
+          {{ (vm_info_detallada.instance.runtime.powerState | default('') == 'poweredOn') or
+             (vm_info_detallada.instance.hw_power_state | default('') == 'poweredOn') or
+             (vm_info_detallada.instance.power_state | default('') == 'POWERED_ON') }}
+        aprovisionamiento_exitoso: >
+          {{ (vm_info_detallada.instance is defined) and 
+             ((vm_info_detallada.instance.runtime.powerState | default('') == 'poweredOn') or
+              (vm_info_detallada.instance.hw_power_state | default('') == 'poweredOn') or
+              (vm_info_detallada.instance.power_state | default('') == 'POWERED_ON')) and 
+             ((vm_info_detallada.instance.ipv4 | default('')) == (reporte_informacion.ip_objetivo)) }}
+        
+        credenciales_acceso:
+          windows: "operator / Bugtraq12"
+          linux: "root / i20unix06b"
+          usuario_aplicable: "{{ 'root / i20unix06b' if vm_ostype == 'linux' else 'operator / Bugtraq12' }}"
+        
+        puertos_disponibles:
+          ssh: "{{ 22 if vm_ostype == 'linux' else 'N/A' }}"
+          rdp: "{{ 3389 if vm_ostype == 'windows' else 'N/A' }}"
+  tags: [reporte_final, post_tasks, reporte_ejecutivo]
+
+- name: "Mostrar reporte ejecutivo final"
+  ansible.builtin.debug:
+    msg:
+      - "═══════════════════════════════════════════════════════════════"
+      - "🎯 REPORTE EJECUTIVO FINAL DE APROVISIONAMIENTO"
+      - "═══════════════════════════════════════════════════════════════"
+      - ""
+      - "✅ RESULTADO: {{ reporte_ejecutivo.resumen_ejecutivo.resultado }}"
+      - "📋 VM CREADA: {{ 'SÍ' if reporte_ejecutivo.resumen_ejecutivo.vm_creada else 'NO' }}"
+      - "⚡ VM OPERATIVA: {{ 'SÍ' if reporte_ejecutivo.resumen_ejecutivo.vm_operativa else 'NO' }}"
+      - "🌐 IP ASIGNADA: {{ reporte_ejecutivo.resumen_ejecutivo.ip_asignada }}"
+      - "📅 TIMESTAMP: {{ reporte_ejecutivo.resumen_ejecutivo.tiempo_aprovisionamiento }}"
+      - ""
+      - "🖥️  DETALLES DE VM:"
+      - "   Nombre: {{ reporte_ejecutivo.detalles_vm.nombre }}"
+      - "   Template: {{ reporte_ejecutivo.detalles_vm.template_base }}"
+      - "   Sistema: {{ reporte_ejecutivo.detalles_vm.sistema_operativo | upper }}"
+      - "   Estado: {{ reporte_ejecutivo.detalles_vm.estado_power }}"
+      - "   CPU: {{ reporte_ejecutivo.detalles_vm.cpu_count }} vCPUs"
+      - "   RAM: {{ reporte_ejecutivo.detalles_vm.memoria_mb }} MB"
+      - "   Tools: {{ reporte_ejecutivo.detalles_vm.tools_status }}"
+      - ""
+      - "🌐 CONFIGURACIÓN DE RED:"
+      - "   IP Configurada: {{ reporte_ejecutivo.configuracion_red.ip_configurada }}"
+      - "   IP Objetivo: {{ reporte_ejecutivo.configuracion_red.ip_objetivo }}"
+      - "   IP Correcta: {{ 'SÍ' if reporte_ejecutivo.configuracion_red.ip_match else 'NO' }}"
+      - "   Gateway: {{ reporte_ejecutivo.configuracion_red.gateway }}"
+      - "   DNS: {{ reporte_ejecutivo.configuracion_red.dns_servers | join(', ') }}"
+      - ""
+      - "🔐 ACCESO REMOTO:"
+      - "   Credenciales: {{ reporte_ejecutivo.conectividad.credenciales_acceso.usuario_aplicable }}"
+      - "   SSH: Puerto {{ reporte_ejecutivo.conectividad.puertos_disponibles.ssh if vm_ostype == 'linux' else 'N/A' }}"
+      - "   RDP: Puerto {{ reporte_ejecutivo.conectividad.puertos_disponibles.rdp if vm_ostype == 'windows' else 'N/A' }}"
+      - ""
+      - "🔧 OPERACIONES EJECUTADAS: {{ reporte_ejecutivo.operaciones_realizadas | join(', ') }}"
+      - "🏗️  MÉTODO: {{ reporte_ejecutivo.resumen_ejecutivo.metodo_usado }}"
+      - ""
+      - "═══════════════════════════════════════════════════════════════"
+  tags: [reporte_final, post_tasks, mostrar_reporte]

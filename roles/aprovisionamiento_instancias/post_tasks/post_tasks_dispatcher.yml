@@ -1,0 +1,19 @@
+---
+## Post-Tasks Dispatcher - Redirección por OS
+## Función: Ejecutar post_tasks específicos según vm_ostype
+
+- name: "Determinar OS para post_tasks"
+  ansible.builtin.set_fact:
+    es_windows: "{{ vm_ostype == 'windows' }}"
+    es_linux: "{{ vm_ostype == 'linux' }}"
+  tags: [post_tasks, os_detection]
+
+- name: "Ejecutar post_tasks Windows"
+  ansible.builtin.include_tasks: post_tasks_windows.yml
+  when: es_windows
+  tags: [post_tasks, windows]
+
+- name: "Ejecutar post_tasks Linux"
+  ansible.builtin.include_tasks: post_tasks_linux.yml
+  when: es_linux
+  tags: [post_tasks, linux] 

@@ -1,0 +1,33 @@
+---
+# defaults file for pre_patching_validation
+
+filesystems_to_check: []
+boot_space_threshold_mb: 256
+other_fs_space_threshold_perc: 25
+patch_source: 'satellite'
+jumphost_path: '/tmp'
+patch_type: 'update_all'
+backup_to_jumphost: false
+ubuntu_repo_backup_path: '/root/repo-backup'
+ubuntu_repo_files: ''
+ubuntu_repo_file_validation: false
+yum_exclude_patch_list: ''
+fail_on_error: true
+skip_cluster_check: true
+send_email: false
+recipients: []
+smtp_host_ip: ''
+smtp_port: 25
+system_load_check: false
+teams_notification: false
+channel_webhook_url: ''
+configure_patch_source: false
+patch_source_url: ''
+satellite_repo_activation_key: ''
+satellite_org_name: ''
+reposerver_repo_name: ''
+disable_satellite_repo: false
+katello_package_to_be_removed: ''
+service_restart_list: ''
+app_service_stop_script: ''
+attach_config_data: false

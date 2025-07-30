@@ -1,0 +1,25 @@
+- name: Verificar si Nessus ya está instalado (Windows)
+  when: ansible_os_family == 'Windows'
+  block:
+
+    - name: Consultar si Nessus está instalado desde el Registro
+      ansible.windows.win_shell: |
+        $apps = Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\* |
+                Where-Object { $_.DisplayName -like '*Nessus Agent*' }
+        if ($apps) {
+          "INSTALLED"
+        } else {
+          "NOT_INSTALLED"
+        }
+      register: nessus_check
+      changed_when: false
+      failed_when: false
+
+    - name: Debug salida de verificación de Nessus
+      ansible.builtin.debug:
+        var: nessus_check.stdout
+
+    - name: Falla si ya está instalado
+      ansible.builtin.fail:
+        msg: "❌ Nessus Agent ya se encuentra instalado en Windows."
+      when: nessus_check.stdout | trim == "INSTALLED"

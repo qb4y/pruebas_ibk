@@ -1,0 +1,19 @@
+---
+
+- name: Create directory for the script
+  win_file:
+    path: C:\temp
+    state: directory
+
+- name: Copy script
+  win_copy:
+    src: "reset_wsus_client_id.bat"
+    dest: C:\temp\reset_wsus_client_id.bat
+
+- name: Run shell script
+  win_shell: "C:\\temp\\reset_wsus_client_id.bat"
+
+- name: Remove script
+  win_file:
+    path: C:\temp\reset_wsus_client_id.bat
+    state: absent

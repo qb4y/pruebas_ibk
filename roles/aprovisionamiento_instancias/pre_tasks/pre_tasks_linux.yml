@@ -1,0 +1,11 @@
+---
+## Pre-Tasks específicos para Linux
+## Función: Validaciones previas para aprovisionamiento Linux
+
+- name: "Validar variables específicas Linux"
+  ansible.builtin.include_tasks: validar_variables_requeridas.yml
+  tags: [pre_tasks_linux, validar_variables]
+
+- name: "Validar conexión vCenter para Linux"
+  ansible.builtin.include_tasks: validar_conexion_vcenter.yml
+  tags: [pre_tasks_linux, validar_conexion] 

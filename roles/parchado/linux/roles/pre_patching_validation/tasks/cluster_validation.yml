@@ -1,0 +1,34 @@
+---
+
+- name: Cluster validation
+  block:
+
+    - name: Check cluster status in case of PCS cluster
+      ansible.builtin.command: pcs status
+      register: pcs_status
+      failed_when: false
+      changed_when: false
+
+    - name: Check cluster status in case of RGManager
+      ansible.builtin.command: clustat
+      register: rgmanager_status
+      failed_when: false
+      changed_when: false
+
+    - name: Check cluster status in case of VCS cluster  # noqa risky-shell-pipe
+      ansible.builtin.shell: |
+        ps -ef | grep -i hashadow | grep -v grep
+      register: vcs_status
+      failed_when: false
+      changed_when: false
+
+    - name: Cluster validation
+      ansible.builtin.set_fact:
+        cluster_validation: false
+        exec_message:
+          "{{ exec_message }}
+          {{ inventory_hostname }} server is part of a cluster.
+          Manual patching needs to be performed.\n\n"
+      when: pcs_status.rc == 0 or
+            rgmanager_status.rc == 0 or
+            vcs_status.rc == 0

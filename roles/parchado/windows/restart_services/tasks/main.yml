@@ -1,0 +1,6 @@
+---
+# tasks file for restart_services - System reboot handles all services
+
+- name: Services will be restarted by system reboot
+  debug:
+    msg: "All services will be automatically restarted during system reboot - no manual intervention needed"

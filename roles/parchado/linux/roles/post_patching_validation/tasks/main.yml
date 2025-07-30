@@ -1,0 +1,331 @@
+---
+# tasks file for post_patching_validation
+
+- name: Gather required facts
+  when: post_patching_standalone_mode
+  block:
+
+    - name: Gather required facts
+      ansible.builtin.setup:
+        gather_subset: "!all,distribution_major_version,date_time"
+      ignore_unreachable: true
+      register: gathered_facts
+
+    - name: "Gather facts failed"
+      ansible.builtin.fail:
+        msg: "Gather facts failed for host"
+      when: gathered_facts.unreachable is defined
+
+  rescue:
+
+    - name: Fail with return code 1001
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_number: 1001
+        rc_support: "account"
+        rc_group: "misconfiguration"
+        rc_message:
+          "Error Message: {% if (ansible_failed_result.stderr is defined)
+          %}{{ ansible_failed_result.stderr }}
+          {% elif (ansible_failed_result.response is defined)
+          %}{{ ansible_failed_result.response }}{% elif
+          (ansible_failed_result.msg is defined) %}
+          {{ ansible_failed_result.msg }}{% elif
+          (ansible_failed_result.stdout is defined) %}{{
+          ansible_failed_result.stdout }}
+          {% else %}Please refer to the job log
+          for more details{% endif %}"
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Unable to connect to the remote host.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Unable to connect to the remote host."
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Make sure there are no parallel executions
+  ansible.builtin.include_tasks: lock_file.yml
+  when:
+    - post_patching_standalone_mode
+    - continue_execution
+
+- name: Check and remove old kernels
+  when:
+    - ansible_distribution == "Ubuntu"
+    - patch_status == 'success'
+    - continue_execution
+  block:
+
+    - name: Run autoremove
+      ansible.builtin.apt:
+        autoremove: true
+      register: autoremove_out
+
+    - name: Removed unused dependency packages
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Unused dependency packages have been removed.\n\n
+          Below are the details:\n\n
+          {{ autoremove_out.stdout }}\n\n"
+
+  rescue:
+
+    - name: Return code generation if post patching steps for ubuntu fail
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5017
+        rc_message:
+          "One of the post patching steps for Ubuntu OS has failed.
+          Further investigation is required by the developer."
+
+    - name: Removed unused dependency packages
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Unable to remove unused dependency packages.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Post patching steps for Ubuntu OS failed"
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Reboot required?
+  when:
+    - not reboot_required | bool
+    - continue_execution
+  block:
+
+    - name: Check if reboot is required - Rhel/CentOS
+      when:
+        ansible_distribution == "RedHat" or
+        ansible_distribution == "CentOS" or
+        ansible_distribution == "OracleLinux" or
+        ansible_distribution == "Rocky"
+      block:
+
+        - name: Check if reboot is required  # noqa risky-shell-pipe
+          ansible.builtin.shell: |
+            needs-restarting -r
+          register: test_restart_rhel
+          failed_when: false
+          changed_when: false
+
+        - name: Update exec_message
+          ansible.builtin.set_fact:
+            exec_message:
+              "{{ exec_message }}
+              {{ test_restart_rhel.stdout }}\n\n"
+
+    - name: Check if reboot is required - Suse
+      when: "'SLE' in ansible_distribution"
+      block:
+
+        - name: Check if reboot is required
+          ansible.builtin.command: zypper needs-rebooting
+          register: test_restart_suse
+          failed_when: false
+          changed_when: false
+
+        - name: Update exec_message
+          ansible.builtin.set_fact:
+            exec_message:
+              "{{ exec_message }}
+              {{ test_restart_suse.stdout }}\n\n"
+
+    - name: Check if reboot is required - Ubuntu
+      when: ansible_distribution == "Ubuntu"
+      block:
+
+        - name: Check if reboot is required
+          ansible.builtin.stat:
+            path: /var/run/reboot-required
+          register: test_restart_ubuntu
+          changed_when: false
+
+        - name: Update exec_message
+          ansible.builtin.set_fact:
+            exec_message:
+              "{{ exec_message }}
+              {% if test_restart_ubuntu.stat.exists %}Reboot required.{%
+              else %}Reboot not required.{% endif %}\n\n"
+
+- name: Reboot the server
+  when:
+    - continue_execution
+    - reboot_required | bool
+    - (patch_status == 'success' or
+      (patch_status == 'nothing_to_do' and force_reboot | bool))
+  block:
+
+    - name: Reboot the server
+      ansible.builtin.reboot:
+        msg: Reboot initiated by post patching playbook
+        connect_timeout: 5
+        reboot_timeout: 600
+        pre_reboot_delay: 0
+        post_reboot_delay: 0
+        test_command: uptime
+
+    - name: Reboot successful
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Server rebooted successfully.\n\n"
+
+  rescue:
+
+    - name: Return code generation in case server reboot fails
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5018
+        rc_message:
+          "Server reboot has failed.
+          Further investigation is required by the developer."
+
+    - name: Reboot unsuccessful
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Server reboot step didn't finish gracefully.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Server reboot has failed"
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Start Services
+  when:
+    - patching_pre_req_validation
+    - continue_execution
+  ansible.builtin.include_tasks: start_services.yml
+
+- name: Fetch post patching configuration data
+  when:
+    - patch_status == 'success'
+    - continue_execution
+  ansible.builtin.include_tasks: config_backup.yml
+
+- name: Copy configuration files to Jumphost
+  when:
+    - attach_config_data
+    - patch_status == 'success'
+    - continue_execution
+  block:
+
+    - name: Fetch files to Tower from endpoints
+      ansible.builtin.fetch:
+        src: "/var/log/{{ post_patching_output_file }}"
+        dest: "{{ hostvars['localhost'].base_dir }}/"
+        flat: true
+
+    - name: Jumphop selection
+      ansible.builtin.include_tasks: jumphop_selection.yml
+
+    - name: Copy files from Tower to Jumphost
+      ansible.builtin.copy:
+        src: "{{ hostvars['localhost'].base_dir }}/"
+        dest: "{{ jumphost_path }}/"
+        force: true
+        mode: "0644"
+      become: false
+      delegate_to: "{{ jh_delegate_to_ip }}"
+      vars:
+        ansible_user: "{{ jh_user }}"
+        ansible_ssh_private_key_file: "{{ jh_ssh_private_key_file }}"
+        ansible_ssh_common_args: "{{ jh_ssh_extra_args }}"
+        ansible_ssh_host_key_checking: false
+
+  rescue:
+
+    - name: Return code generation in case of copy to jumphost failure
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5008
+        rc_message:
+          "Configuration data could not be saved to the jumphost.
+          Further investigation is required by the developer."
+
+    - name: Backup configuration failed
+      ansible.builtin.set_fact:
+        patching_pre_req_validation: false
+        exec_message:
+          "{{ exec_message }}
+          Configuration data could not be saved to the jumphost.\n\n
+          Aborting the patching process.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Post patching configuration could not be saved to the jumphost"
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false

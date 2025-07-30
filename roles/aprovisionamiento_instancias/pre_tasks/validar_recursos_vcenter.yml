@@ -1,0 +1,19 @@
+---
+- name: "Validar conexión básica a vCenter"
+  community.vmware.vmware_about_info:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: "{{ validate_certs | default(false) }}"
+  register: vcenter_info
+  tags: [validacion, pre_tasks, recursos_vcenter]
+
+- name: "Confirmar conexión exitosa"
+  ansible.builtin.debug:
+    msg:
+      - "CONEXIÓN A VCENTER VALIDADA"
+      - "vCenter: {{ vcenter_hostname }}"
+      - "Versión: {{ vcenter_info.about_info.version }}"
+      - "Build: {{ vcenter_info.about_info.build }}"
+      - "Usuario conectado: {{ vcenter_username }}"
+  tags: [validacion, pre_tasks, recursos_vcenter]

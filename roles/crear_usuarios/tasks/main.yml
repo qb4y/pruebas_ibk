@@ -1,0 +1,102 @@
+---
+- name: 🧠 Recolectar facts si no están presentes
+  ansible.builtin.setup:
+  when: ansible_os_family is not defined
+
+- name: Verificar sistema operativo compatible
+  ansible.builtin.assert:
+    that:
+      - ansible_os_family in ['RedHat', 'Windows']
+    fail_msg: "❌ {{ ansible_os_family | default('desconocido') }} no es compatible con este rol. Solo soporta RedHat family y Windows."
+    success_msg: "✅ Sistema operativo {{ ansible_os_family }} es compatible."
+
+- name: Validar que CU_GRUPOS está definido
+  ansible.builtin.assert:
+    that:
+      - CU_GRUPOS is defined
+      - CU_GRUPOS | length > 0
+    fail_msg: "❌ Variable CU_GRUPOS no está definida o está vacía. Debe contener al menos un grupo."
+    success_msg: "✅ Variable CU_GRUPOS definida con {{ CU_GRUPOS | length }} grupo(s)."
+
+- name: Definir mapeo de permisos por sistema operativo
+  ansible.builtin.set_fact:
+    permission_map:
+      linux:
+        1: ["wheel"]  # Administrador (wheel existe por defecto en RedHat)
+        2: ["users"]  # Usuario estándar
+        3: ["wheel"]  # Operador especializado (usamos wheel también)
+        4: ["users"]  # Solo lectura (usamos users)
+        5: ["users"]  # Operador backup (usamos users)
+      windows:
+        1: "Administrators"     # Administrador
+        2: "Users"             # Usuario estándar
+        3: "Power Users"       # Operador especializado
+        4: "Guests"            # Solo lectura
+        5: "Backup Operators"  # Operador backup
+
+- name: Validar códigos de permisos en CU_GRUPOS
+  ansible.builtin.assert:
+    that:
+      - item.1.permisos in [1, 2, 3, 4, 5]
+    fail_msg: "❌ Código de permiso inválido '{{ item.1.permisos }}' para usuario '{{ item.1.nombre }}'. Debe ser 1-5."
+    success_msg: "✅ Código de permiso válido para {{ item.1.nombre }}"
+  loop: "{{ CU_GRUPOS | subelements('usuarios') }}"
+  loop_control:
+    label: "{{ item.1.nombre }} (permiso: {{ item.1.permisos }})"
+
+- name: Establecer configuración por defecto para Linux
+  ansible.builtin.set_fact:
+    default_shell: "{{ CU_DEFAULT_SHELL | default('/bin/bash') }}"
+    home_base_path: "{{ CU_HOME_BASE_PATH | default('/home') }}"
+  when: ansible_os_family == 'RedHat'
+
+- name: Establecer configuración por defecto para Windows
+  ansible.builtin.set_fact:
+    home_base_path: "{{ CU_HOME_BASE_PATH | default('C:\\Users') }}"
+    force_password_change: "{{ CU_FORCE_PASSWORD_CHANGE | default(true) }}"
+  when: ansible_os_family == 'Windows'
+
+- name: Mostrar resumen de configuración
+  ansible.builtin.debug:
+    msg: |
+      🔧 Configuración del rol crear_usuarios:
+      📊 Sistema: {{ ansible_os_family }}
+      👥 Grupos a crear: {{ CU_GRUPOS | length }}
+      👤 Total usuarios: {{ CU_GRUPOS | map(attribute='usuarios') | flatten | length }}
+      🏠 Ruta base home: {{ home_base_path }}
+      🧪 Modo fake: {{ CU_FAKE_ENVIRONMENT | default(false) }}
+
+- name: Ejecutar creación en Linux
+  ansible.builtin.include_tasks: linux.yml
+  when: 
+    - ansible_os_family == 'RedHat'
+    - not (CU_FAKE_ENVIRONMENT | default(false))
+
+- name: Ejecutar creación en Windows
+  ansible.builtin.include_tasks: windows.yml
+  when: 
+    - ansible_os_family == 'Windows'
+    - not (CU_FAKE_ENVIRONMENT | default(false))
+
+- name: Simular creación (modo fake)
+  ansible.builtin.debug:
+    msg: |
+      🧪 MODO SIMULACIÓN ACTIVADO
+      Los siguientes usuarios y grupos serían creados:
+      {% for grupo in CU_GRUPOS %}
+      📁 Grupo: {{ grupo.nombre }}
+      {% for usuario in grupo.usuarios %}
+        👤 Usuario: {{ usuario.nombre }} (Permiso: {{ usuario.permisos }})
+      {% endfor %}
+      {% endfor %}
+  when: CU_FAKE_ENVIRONMENT | default(false)
+
+- name: ✅ Resumen final de ejecución
+  ansible.builtin.debug:
+    msg: |
+      ✅ Rol crear_usuarios completado en {{ inventory_hostname }}
+      📊 Sistema: {{ ansible_os_family }}
+      👥 Grupos procesados: {{ CU_GRUPOS | length }}
+      👤 Usuarios procesados: {{ CU_GRUPOS | map(attribute='usuarios') | flatten | length }}
+      🧪 Modo fake: {{ CU_FAKE_ENVIRONMENT | default(false) }}
+  when: not (CU_FAKE_ENVIRONMENT | default(false))

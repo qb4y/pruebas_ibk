@@ -1,0 +1,4 @@
+nessus_activation_key: "{{ lookup('community.hashi_vault.hashi_vault', 'secret=secret/nessus:nessus_activation_key') }}"
+nessus_host: "{{ lookup('community.hashi_vault.hashi_vault', 'secret=secret/nessus:nessus_host') }}"
+nessus_port: "{{ lookup('community.hashi_vault.hashi_vault', 'secret=secret/nessus:nessus_port') }}"
+nessus_groups: "{{ lookup('community.hashi_vault.hashi_vault', 'secret=secret/nessus:nessus_groups') }}"

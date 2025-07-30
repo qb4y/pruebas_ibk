@@ -1,0 +1,318 @@
+---
+- name: Verificar distribución Linux soportada
+  ansible.builtin.assert:
+    that:
+      - ansible_os_family in linux_config.supported_families
+    fail_msg: "Distribución Linux no soportada: {{ ansible_os_family }}"
+    success_msg: "Distribución Linux soportada: {{ ansible_os_family }}"
+  tags:
+    - linux
+    - validation
+
+- name: Obtener información detallada del sistema Linux
+  ansible.builtin.setup:
+    gather_subset:
+      - hardware
+      - system
+  tags:
+    - linux
+    - memory_info
+
+- name: Obtener información actual de swap
+  ansible.builtin.shell: |
+    free -m | grep Swap | awk '{print $2":"$3":"$4}'
+  register: current_swap_info
+  tags:
+    - linux
+    - swap_info
+
+- name: Procesar información de swap
+  ansible.builtin.set_fact:
+    swap_info:
+      total: "{{ current_swap_info.stdout.split(':')[0] | int }}"
+      used: "{{ current_swap_info.stdout.split(':')[1] | int }}"
+      free: "{{ current_swap_info.stdout.split(':')[2] | int }}"
+  tags:
+    - linux
+    - swap_info
+
+- name: Obtener información de swappiness
+  ansible.builtin.shell: cat /proc/sys/vm/swappiness
+  register: current_swappiness
+  tags:
+    - linux
+    - swap_info
+
+- name: Verificar archivos de swap existentes
+  ansible.builtin.shell: |
+    swapon --show=NAME,TYPE,SIZE,USED,PRIO --noheadings
+  register: existing_swap_files
+  tags:
+    - linux
+    - swap_info
+
+- name: Mostrar información actual del sistema Linux
+  ansible.builtin.debug:
+    msg: |
+      === INFORMACIÓN DEL SISTEMA LINUX ===
+
+      🖥️ Sistema:
+      - Hostname: {{ ansible_hostname }}
+      - Distribución: {{ ansible_distribution }}
+      - Versión: {{ ansible_distribution_version }}
+      - Kernel: {{ ansible_kernel }}
+      - Arquitectura: {{ ansible_architecture }}
+
+      💾 Memoria:
+      - RAM Total: {{ ansible_memtotal_mb }} MB
+      - RAM Disponible: {{ ansible_memfree_mb }} MB
+      - Swap Total: {{ swap_info.total }} MB
+      - Swap Usado: {{ swap_info.used }} MB
+      - Swap Libre: {{ swap_info.free }} MB
+
+      🔧 Configuración:
+      - Swappiness: {{ current_swappiness.stdout }}
+      - Archivos swap existentes: {{ existing_swap_files.stdout_lines | length }}
+
+      📁 Archivos swap activos:
+      {% for swap_file in existing_swap_files.stdout_lines %}
+      - {{ swap_file }}
+      {% endfor %}
+  tags:
+    - linux
+    - debug
+
+- name: Calcular tamaño de swap recomendado
+  ansible.builtin.set_fact:
+    swap_size_mb: "{{ ((ansible_memtotal_mb * 1.5) | int) if ansible_memtotal_mb <= 8192 else ((ansible_memtotal_mb * 0.5) | int) }}"
+  tags:
+    - linux
+    - swap_calculation
+
+- name: Verificar si ya existe swap suficiente
+  ansible.builtin.set_fact:
+    swap_adequate: "{{ (swap_info.total | int) >= (swap_size_mb | int) }}"
+  tags:
+    - linux
+    - swap_validation
+
+- name: Crear backup de configuración actual
+  ansible.builtin.shell: |
+    backup_dir="{{ linux_config.temp_log_path }}"
+    mkdir -p "$backup_dir"
+    timestamp=$(date +%Y%m%d_%H%M%S)
+    backup_file="$backup_dir/swap_backup_$timestamp.txt"
+
+    echo "=== BACKUP CONFIGURACIÓN SWAP ===" > "$backup_file"
+    echo "Timestamp: $(date)" >> "$backup_file"
+    echo "Hostname: $(hostname)" >> "$backup_file"
+    echo "" >> "$backup_file"
+    echo "Información memoria:" >> "$backup_file"
+    free -h >> "$backup_file"
+    echo "" >> "$backup_file"
+    echo "Archivos swap activos:" >> "$backup_file"
+    swapon --show >> "$backup_file"
+    echo "" >> "$backup_file"
+    echo "Swappiness actual:" >> "$backup_file"
+    cat /proc/sys/vm/swappiness >> "$backup_file"
+    echo "" >> "$backup_file"
+    echo "Contenido /etc/fstab:" >> "$backup_file"
+    grep -E "(swap|none)" /etc/fstab >> "$backup_file" 2>/dev/null || echo "No hay entradas swap en fstab"
+
+    echo "Backup creado en: $backup_file"
+  register: backup_result
+  when: crear_backup | default(true) | bool
+  tags:
+    - linux
+    - backup
+
+- name: Mostrar configuración propuesta
+  ansible.builtin.debug:
+    msg: |
+      === CONFIGURACIÓN PROPUESTA ===
+
+      📊 Análisis:
+      - Swap actual: {{ swap_info.total }} MB
+      - Swap recomendado: {{ swap_size_mb }} MB
+      - Swap suficiente: {{ swap_adequate }}
+
+      🔧 Acción requerida:
+      - Crear nuevo swap: {{ not swap_adequate }}
+      - Tamaño archivo: {{ swap_size_mb }} MB
+      - Ubicación: {{ linux_config.swap_file_path }}
+      - Prioridad: {{ linux_config.swap_priority }}
+
+      ⚙️ Configuración sistema:
+      - Swappiness objetivo: {{ linux_config.swappiness }}
+      - Swappiness actual: {{ current_swappiness.stdout }}
+  tags:
+    - linux
+    - debug
+
+- name: Configurar swap si es necesario
+  block:
+    - name: Verificar espacio disponible en disco
+      ansible.builtin.shell: |
+        df -m / | tail -1 | awk '{print $4}'
+      register: available_space
+
+    - name: Fallar si no hay espacio suficiente
+      ansible.builtin.fail:
+        msg: "No hay espacio suficiente en disco. Disponible: {{ available_space.stdout }}MB, Requerido: {{ swap_size_mb }}MB"
+      when: (available_space.stdout | int) < (swap_size_mb | int)
+
+    - name: Crear archivo de swap
+      ansible.builtin.command: |
+        dd if=/dev/zero of={{ linux_config.swap_file_path }} bs=1M count={{ swap_size_mb }}
+      register: dd_result
+
+    - name: Establecer permisos del archivo swap
+      ansible.builtin.file:
+        path: "{{ linux_config.swap_file_path }}"
+        mode: '0600'
+        owner: root
+        group: root
+
+    - name: Crear formato swap
+      ansible.builtin.command: mkswap {{ linux_config.swap_file_path }}
+      register: mkswap_result
+
+    - name: Activar swap
+      ansible.builtin.command: swapon {{ linux_config.swap_file_path }}
+      register: swapon_result
+
+    - name: Configurar prioridad del swap
+      ansible.builtin.shell: |
+        swapoff {{ linux_config.swap_file_path }}
+        swapon -p {{ linux_config.swap_priority }} {{ linux_config.swap_file_path }}
+      register: priority_result
+
+    - name: Verificar entrada en fstab
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        line: '{{ linux_config.swap_file_path }} none swap sw,pri={{ linux_config.swap_priority }} 0 0'
+        state: present
+        backup: yes
+      register: fstab_result
+
+    - name: Mostrar resultado de creación de swap
+      ansible.builtin.debug:
+        msg: |
+          === RESULTADO CREACIÓN SWAP ===
+          ✅ Archivo creado: {{ dd_result.rc == 0 }}
+          ✅ Formato aplicado: {{ mkswap_result.rc == 0 }}
+          ✅ Swap activado: {{ swapon_result.rc == 0 }}
+          ✅ Prioridad configurada: {{ priority_result.rc == 0 }}
+          ✅ Entrada fstab: {{ fstab_result.changed }}
+
+  when:
+    - not swap_adequate
+    - configurar_paginacion | bool
+  tags:
+    - linux
+    - configure_swap
+
+- name: Configurar swappiness del sistema
+  ansible.builtin.sysctl:
+    name: vm.swappiness
+    value: "{{ linux_config.swappiness }}"
+    state: present
+    sysctl_set: yes
+    reload: yes
+  register: swappiness_result
+  tags:
+    - linux
+    - configure_swappiness
+
+- name: Hacer persistente la configuración de swappiness
+  ansible.builtin.lineinfile:
+    path: /etc/sysctl.conf
+    line: 'vm.swappiness={{ linux_config.swappiness }}'
+    state: present
+    backup: yes
+  register: sysctl_conf_result
+  tags:
+    - linux
+    - configure_swappiness
+
+- name: Obtener información final del swap
+  ansible.builtin.shell: |
+    free -m | grep Swap | awk '{print $2":"$3":"$4}'
+  register: final_swap_info
+  tags:
+    - linux
+    - final_validation
+
+- name: Procesar información final de swap
+  ansible.builtin.set_fact:
+    final_swap_info_parsed:
+      total: "{{ final_swap_info.stdout.split(':')[0] | int }}"
+      used: "{{ final_swap_info.stdout.split(':')[1] | int }}"
+      free: "{{ final_swap_info.stdout.split(':')[2] | int }}"
+  tags:
+    - linux
+    - final_validation
+
+- name: Obtener lista final de archivos swap
+  ansible.builtin.shell: |
+    swapon --show=NAME,TYPE,SIZE,USED,PRIO --noheadings
+  register: final_swap_files
+  tags:
+    - linux
+    - final_validation
+
+- name: Mostrar configuración final
+  ansible.builtin.debug:
+    msg: |
+      === CONFIGURACIÓN FINAL APLICADA ===
+
+      🖥️ Servidor: {{ ansible_hostname }}
+      ⏰ Timestamp: {{ ansible_date_time.iso8601 }}
+      💾 RAM Total: {{ ansible_memtotal_mb }} MB
+
+      📊 Swap Final:
+      - Total: {{ final_swap_info_parsed.total }} MB
+      - Usado: {{ final_swap_info_parsed.used }} MB
+      - Libre: {{ final_swap_info_parsed.free }} MB
+
+      🔧 Configuración:
+      - Swappiness: {{ linux_config.swappiness }}
+      - Archivos swap activos: {{ final_swap_files.stdout_lines | length }}
+
+      📁 Archivos swap configurados:
+      {% for swap_file in final_swap_files.stdout_lines %}
+      - {{ swap_file }}
+      {% endfor %}
+
+      ✅ Configuración aplicada exitosamente
+  when: validar_configuracion | bool
+  tags:
+    - linux
+    - final_validation
+
+- name: Crear artefacto de configuración aplicada
+  ansible.builtin.set_fact:
+    paginacion_aplicada:
+      timestamp: "{{ ansible_date_time.iso8601 }}"
+      servidor: "{{ ansible_hostname }}"
+      usuario_conexion: "{{ ansible_user }}"
+      sistema_operativo: "{{ ansible_distribution }}"
+      version_os: "{{ ansible_distribution_version }}"
+      kernel: "{{ ansible_kernel }}"
+      memoria_total: "{{ ansible_memtotal_mb }} MB"
+      memoria_disponible: "{{ ansible_memfree_mb }} MB"
+      configuracion_aplicada:
+        swap_total: "{{ final_swap_info_parsed.total }} MB"
+        swap_usado: "{{ final_swap_info_parsed.used }} MB"
+        swap_libre: "{{ final_swap_info_parsed.free }} MB"
+        swappiness: "{{ linux_config.swappiness }}"
+        archivo_swap: "{{ linux_config.swap_file_path }}"
+        prioridad: "{{ linux_config.swap_priority }}"
+      cambios_realizados: "{{ not swap_adequate }}"
+      swappiness_configurado: "{{ swappiness_result.changed }}"
+      backup_creado: "{{ backup_result.changed | default(false) }}"
+      validacion_final: "{{ final_swap_info is defined }}"
+      metodo_configuracion: "dd + mkswap + swapon"
+  tags:
+    - linux
+    - artifacts

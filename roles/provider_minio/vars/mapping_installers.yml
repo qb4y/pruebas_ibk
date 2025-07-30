@@ -1,0 +1,72 @@
+---
+# Mapeos centralizados de instaladores por producto
+# Estructura: product_mappings[PRODUCTO][OS_KEY] = ruta_archivo
+product_mappings:
+  
+  # ========== CROWDSTRIKE ==========
+  crowdstrike:
+    installers:
+      # Windows
+      "Windows": "crowdstrike-installers/windows/WindowsSensor.MaverickGyr.exe"
+      
+      # Linux RedHat family
+      "RedHat-6": "crowdstrike-installers/linux/redhat-6.rpm"
+      "RedHat-7": "crowdstrike-installers/linux/redhat-7.rpm"
+      "RedHat-8": "crowdstrike-installers/linux/redhat-8.rpm"
+      "RedHat-9": "crowdstrike-installers/linux/redhat-8.rpm"
+    
+    certificates:
+      # Solo Windows requiere certificados
+      "Windows":
+        - "crowdstrike-installers/windows/DigiCertHighAssuranceEVRootCA.crt"
+        - "crowdstrike-installers/windows/DigiCertAssuredIDRootCA.crt"
+    
+    supported_os: ["Windows", "RedHat"]
+    description: "CrowdStrike Falcon Sensor - EDR Security Platform"
+
+  # ========== NESSUS ==========
+  nessus:
+    installers:
+      # Windows
+      "Windows": "tenable-installers/windows/NessusAgent-10.9.0-x64.msi"
+
+      # Linux RedHat family
+      "RedHat-7": "tenable-installers/linux/NessusAgent-10.9.0-el7.x86_64.rpm"
+      "RedHat-8": "tenable-installers/linux/NessusAgent-10.9.0-el8.x86_64.rpm"
+      "RedHat-9": "tenable-installers/linux/NessusAgent-10.9.0-el9.x86_64.rpm"
+    certificates: {}
+    
+    supported_os: ["Windows", "RedHat"]
+    description: "Nessus Agent - Vulnerability Assessment Scanner"
+
+  # ========== ROBOT UIM ==========
+  uim:
+    installers:
+      # Windows
+      "Windows": "uim/windows/NimBUS_Robot_9.33.exe"
+      
+      # Linux RedHat family
+      "RedHat-6": "uim/linux/nimsoft-robot.x86_64_linux_20.33.rpm"
+      "RedHat-7": "uim/linux/nimsoft-robot.x86_64_linux_20.33.rpm"
+      "RedHat-8": "uim/linux/nimsoft-robot.x86_64_linux_20.33.rpm"
+      "RedHat-9": "uim/linux/nimsoft-robot.x86_64_linux_20.33.rpm"
+    certificates: {}
+    
+    supported_os: ["Windows", "RedHat"]
+    description: "CA UIM Robot - Unified Infrastructure Management Agent"
+
+# ========== CONFIGURACIÓN GLOBAL ==========
+global_config:
+  default_expiry: "1h"                    # Tiempo de expiración por defecto
+  supported_products: ["crowdstrike", "nessus", "uim"]  # Productos soportados
+  # Lógica para generar claves de OS
+  os_key_mapping:
+    Windows: "Windows"
+    RedHat: "{{ ansible_distribution }}-{{ ansible_distribution_major_version }}"
+    Debian: "{{ ansible_distribution }}-{{ ansible_distribution_major_version }}"
+    
+  # Archivos de certificados locales (para roles que los usen)
+  local_cert_names:
+    crowdstrike:
+      - "DigiCertHighAssuranceEVRootCA.crt"
+      - "DigiCertAssuredIDRootCA.crt"

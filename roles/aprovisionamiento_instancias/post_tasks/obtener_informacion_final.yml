@@ -1,0 +1,199 @@
+---
+- name: "Obtener informacion completa de VM"
+  community.vmware.vmware_guest_info:
+    hostname: "{{ vcenter_credentials.hostname }}"
+    username: "{{ vcenter_credentials.username }}"
+    password: "{{ vcenter_credentials.password }}"
+    validate_certs: "{{ vcenter_credentials.validate_certs }}"
+    datacenter: "{{ vcenter_credentials.datacenter }}"
+    name: "{{ vm_config.name }}"
+    schema: "vsphere"
+  register: vm_info_completa
+  when: "'vm_get_info' in operaciones_ejecutadas"
+  ignore_errors: yes
+  tags: [vm_get_info, post_tasks]
+
+- name: "Debug - Mostrar estructura completa de vm_info_completa"
+  ansible.builtin.debug:
+    var: vm_info_completa
+    verbosity: 0
+  when: "'vm_get_info' in operaciones_ejecutadas and vm_info_completa is defined"
+
+- name: "Informacion basica de la VM"
+  ansible.builtin.debug:
+    msg: "{{ informacion_vm_simple | to_json }}"
+  vars:
+    informacion_vm_simple:
+      metadata:
+        timestamp: "{{ ansible_date_time.iso8601 }}"
+        operacion: "obtener_informacion_final"
+        vcenter_host: "{{ vcenter_credentials.hostname }}"
+        conexion_reutilizada: true
+      vm_basica:
+        nombre: "{{ vm_config.name }}"
+        estado_consulta: "{{ 'SUCCESS' if vm_info_completa is defined and not vm_info_completa.failed else 'FAILED' }}"
+        tiene_datos: "{{ (vm_info_completa.instance is defined) if vm_info_completa is defined else false }}"
+      mensaje: "Informacion basica obtenida - revisar debug anterior para estructura completa"
+  when: "'vm_get_info' in operaciones_ejecutadas and vm_info_completa is defined"
+  tags: [vm_get_info, post_tasks]
+
+- name: "VM no encontrada para obtener informacion"
+  ansible.builtin.debug:
+    msg: "{{ vm_no_encontrada | to_json }}"
+  vars:
+    vm_no_encontrada:
+      operacion: "obtener_informacion_final"
+      estado: "VM_NO_ENCONTRADA"
+      vm_nombre: "{{ vm_config.name }}"
+      datacenter: "{{ vcenter_credentials.datacenter }}"
+      mensaje: "La VM no existe o no es accesible"
+      accion_requerida: "Verificar que la VM exista en vCenter"
+  when: "'vm_get_info' in operaciones_ejecutadas and (vm_info_completa is not defined or vm_info_completa.failed is defined)"
+  tags: [vm_get_info, post_tasks]
+
+- name: "Verificar existencia de VM antes de eliminar"
+  community.vmware.vmware_guest_info:
+    hostname: "{{ vcenter_credentials.hostname }}"
+    username: "{{ vcenter_credentials.username }}"
+    password: "{{ vcenter_credentials.password }}"
+    validate_certs: "{{ vcenter_credentials.validate_certs }}"
+    datacenter: "{{ vcenter_credentials.datacenter }}"
+    name: "{{ vm_config.name }}"
+    schema: "vsphere"
+  register: vm_info_pre_delete
+  ignore_errors: yes
+  when: "'vm_delete' in operaciones_ejecutadas"
+  tags: [vm_delete, post_tasks]
+
+- name: "Eliminacion automatica - Solo para opaas_test03"
+  ansible.builtin.debug:
+    msg: "{{ eliminacion_automatica | to_json }}"
+  vars:
+    eliminacion_automatica:
+      vm_objetivo: "{{ vm_config.name }}"
+      eliminacion_forzada: true
+      razon: "Reconfiguracion completa requerida"
+      seguridad: "Solo aplica a {{ vm_config.name }}"
+      mensaje: "Eliminando {{ vm_config.name }} automaticamente para reconfiguracion"
+  when:
+    - "'vm_delete' in operaciones_ejecutadas"
+    - vm_info_pre_delete.failed is not defined
+    - vm_config.name == "opaas_test03"
+    - false # Disabled to avoid skipping messages
+  tags: [vm_delete, post_tasks]
+
+- name: "Apagar VM rapido antes de eliminar"
+  community.vmware.vmware_guest:
+    hostname: "{{ vcenter_credentials.hostname }}"
+    username: "{{ vcenter_credentials.username }}"
+    password: "{{ vcenter_credentials.password }}"
+    validate_certs: "{{ vcenter_credentials.validate_certs }}"
+    datacenter: "{{ vcenter_credentials.datacenter }}"
+    name: "{{ vm_config.name }}"
+    state: poweredoff
+    force: true
+    state_change_timeout: 30
+  register: vm_apagada_pre_delete
+  when:
+    - "'vm_delete' in operaciones_ejecutadas"
+    - vm_info_pre_delete.failed is not defined
+    - vm_config.name == "opaas_test03"
+  ignore_errors: yes
+  tags: [vm_delete, post_tasks]
+
+- name: "Eliminar VM del inventario RAPIDO"
+  community.vmware.vmware_guest:
+    hostname: "{{ vcenter_credentials.hostname }}"
+    username: "{{ vcenter_credentials.username }}"
+    password: "{{ vcenter_credentials.password }}"
+    validate_certs: "{{ vcenter_credentials.validate_certs }}"
+    datacenter: "{{ vcenter_credentials.datacenter }}"
+    name: "{{ vm_config.name }}"
+    state: absent
+    force: true
+  register: resultado_eliminacion
+  when:
+    - "'vm_delete' in operaciones_ejecutadas"
+    - vm_info_pre_delete.failed is not defined
+    - vm_config.name == "opaas_test03"
+  tags: [vm_delete, post_tasks]
+
+- name: "VM eliminada exitosamente - FORZADO"
+  ansible.builtin.debug:
+    msg: "{{ resultado_eliminacion_exitosa | to_json }}"
+  vars:
+    resultado_eliminacion_exitosa:
+      operacion: "eliminar_vm_FORZADO"
+      estado: "SUCCESS"
+      timestamp_eliminacion: "{{ ansible_date_time.iso8601 }}"
+      vm_eliminada:
+        nombre: "{{ vm_config.name }}"
+        datacenter: "{{ vcenter_credentials.datacenter }}"
+      proceso:
+        confirmacion_tipo: "AUTOMATICA_PARA_RECONFIGURACION"
+        vm_apagada_previamente: "{{ vm_apagada_pre_delete.changed | default(false) }}"
+        eliminacion_exitosa: "{{ resultado_eliminacion.changed | default(false) }}"
+        timeouts_reducidos: true
+        solo_para_vm: "{{ vm_config.name }}"
+      vcenter:
+        host: "{{ vcenter_credentials.hostname }}"
+        conexion_reutilizada: true
+      mensaje: "{{ vm_config.name }} eliminada AUTOMATICAMENTE para reconfiguracion completa"
+      siguiente_paso: "Crear VM limpia y aplicar template_win forzado"
+  when:
+    - "'vm_delete' in operaciones_ejecutadas"
+    - vm_info_pre_delete.failed is not defined
+    - vm_config.name == "opaas_test03"
+    - resultado_eliminacion.changed | default(false)
+  tags: [vm_delete, post_tasks]
+
+- name: "Seguridad - VM no es opaas_test03"
+  ansible.builtin.debug:
+    msg: "{{ seguridad_vm | to_json }}"
+  vars:
+    seguridad_vm:
+      operacion: "eliminar_vm"
+      estado: "PROTEGIDO"
+      vm_nombre: "{{ vm_config.name }}"
+      razon: "Solo opaas_test03 puede ser eliminada automaticamente"
+      vm_objetivo_permitido: "opaas_test03"
+      mensaje: "Eliminacion automatica solo aplicable a opaas_test03"
+      vm_preservada: true
+  when:
+    - "'vm_delete' in operaciones_ejecutadas"
+    - vm_info_pre_delete.failed is not defined
+    - vm_config.name != "opaas_test03"
+  tags: [vm_delete, post_tasks]
+
+- name: "VM no encontrada para eliminar"
+  ansible.builtin.debug:
+    msg: "{{ vm_no_encontrada_delete | to_json }}"
+  vars:
+    vm_no_encontrada_delete:
+      operacion: "eliminar_vm"
+      estado: "VM_NO_ENCONTRADA"
+      vm_nombre: "{{ vm_config.name }}"
+      datacenter: "{{ vcenter_credentials.datacenter }}"
+      mensaje: "La VM no existe - posiblemente ya fue eliminada"
+      accion_requerida: "Ninguna - objetivo alcanzado"
+  when:
+    - "'vm_delete' in operaciones_ejecutadas"
+    - vm_info_pre_delete.failed is defined
+  tags: [vm_delete, post_tasks]
+
+- name: "Resumen final de post_tasks"
+  ansible.builtin.debug:
+    msg: "{{ resumen_post_tasks | to_json }}"
+  vars:
+    resumen_post_tasks:
+      timestamp: "{{ ansible_date_time.iso8601 }}"
+      vm_objetivo: "{{ vm_config.name }}"
+      vcenter_host: "{{ vcenter_credentials.hostname }}"
+      datacenter: "{{ vcenter_credentials.datacenter }}"
+      conexion_reutilizada: true
+      operaciones_post_tasks:
+        info_obtenida: "{{ 'vm_get_info' in operaciones_ejecutadas and vm_info_completa is defined and vm_info_completa.failed is not defined }}"
+        vm_eliminada: "{{ 'vm_delete' in operaciones_ejecutadas and resultado_eliminacion.changed | default(false) }}"
+        eliminacion_cancelada: "{{ 'vm_delete' in operaciones_ejecutadas and (confirmacion_eliminacion.user_input | default('') != 'DELETE_' + vm_config.name) and not (vm_delete_force | default(false)) }}"
+      mensaje: "Post-tasks completadas"
+  tags: [always, post_tasks, resumen]

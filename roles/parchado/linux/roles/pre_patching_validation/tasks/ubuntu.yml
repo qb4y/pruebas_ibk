@@ -1,0 +1,104 @@
+---
+
+- name: Additional steps for Ubuntu OS
+  block:
+
+    - name: Create backup directory
+      ansible.builtin.file:
+        path: "{{ ubuntu_repo_backup_path }}"
+        state: directory
+        mode: '0777'
+
+    - name: Take backup of repo files
+      ansible.builtin.copy:
+        src: "{{ item }}"
+        dest: "{{ ubuntu_repo_backup_path }}"
+        remote_src: true
+        mode: '0644'
+      loop:
+        - /etc/apt/sources.list.d/
+        - /etc/apt/sources.list
+
+    - name: Find the unwanted files in the repo directory
+      ansible.builtin.find:
+        paths: /etc/apt/sources.list.d
+        excludes: "{{ ubuntu_repo_files }}"
+      register: files_to_delete
+
+    - name: Remove unwanted repo files
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ files_to_delete.files }}"
+
+    - name:
+        Verify whether sources.list
+        repo file is stable  # noqa risky-shell-pipe
+      ansible.builtin.shell: |
+        cat /etc/apt/sources.list | grep -i stable
+      register: repo_file_check
+      changed_when: false
+      failed_when: repo_file_check.rc > 1
+
+    - name: Verify whether ubuntu repo files are stable  # noqa risky-shell-pipe
+      ansible.builtin.shell: |
+        cat /etc/apt/sources.list.d/{{ item }} | grep -i stable
+      register: repo_file_check1
+      changed_when: false
+      failed_when: false
+      loop: "{{ ubuntu_repo_files.split(',') }}"
+
+    - name: Repo file stability check
+      ansible.builtin.set_fact:
+        repo_file_validation: false
+      when: repo_file_check.rc == 1 or item.rc == 1
+      loop: "{{ repo_file_check1.results }}"
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Repo file validation has failed.\n\n"
+      when: not repo_file_validation
+
+  rescue:
+
+    - name: Return code generation in case of
+            failure while running additional steps for ubuntu
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5006
+        rc_message:
+          "One of the commands while running additional steps for ubuntu
+          has failed. Further investigation is required by the developer."
+
+    - name: Set validation flag and message
+      ansible.builtin.set_fact:
+        repo_file_validation: false
+        exec_message:
+          "{{ exec_message }}
+          Unable to perform repo file validation.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Unable to perform repo file validation"
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false

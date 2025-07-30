@@ -1,0 +1,14 @@
+---
+
+jh_delegate_to_ip: "{{ hostvars['127.0.0.1']['jh3_ip'] }}"
+jh_user: "{{ hostvars['127.0.0.1']['jh3_ssh_user'] }}"
+jh_ssh_private_key_file: "{{ j3hop }}"
+jh_ssh_extra_args: >-
+  -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -oProxyCommand="ssh
+  -i {{ j2hop }} -W %h:%p
+  -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -oProxyCommand=\"ssh
+  -i {{ j1hop }} -W
+  {{ jh2_ip }}:{{ jh2_ssh_port }} -oStrictHostKeyChecking=no
+  -oUserKnownHostsFile=/dev/null {{ jh1_ssh_user }}@{{ jh1_ip }}\"
+  {{ jh2_ssh_user }}@{{ jh2_ip }}"
+hop_detected: 3

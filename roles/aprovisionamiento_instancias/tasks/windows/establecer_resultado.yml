@@ -1,0 +1,27 @@
+---
+# Módulo: Establecer Resultado Windows
+# Función: Solo establecer facts después de crear VM
+
+- name: "Establecer facts de resultado"
+  ansible.builtin.set_fact:
+    exec_rc: 0
+    exec_success: true
+    exec_changed: true
+    exec_message: "VM Provisioning Completed Successfully - Rol Maestro Turco"
+  tags: [establecer_resultado]
+
+- name: "Mostrar resultado de creación"
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "RESULTADO CREACIÓN - ROL MAESTRO TURCO"
+      - "=========================================="
+      - "VM: {{ vm_hostname }}"
+      - "Template: {{ vm_template }}"
+      - "Hostname aplicado: {{ customization.hostname }}"
+      - "IP aplicada: {{ networks[0].ip }}"
+      - "DNS aplicado: {{ customization.dns_servers | join(', ') }}"
+      - "Convert usado: {{ disk_type | default('thin') }}"
+      - "Status: {{ 'COMPLETADO' if vm_creation_status.changed else 'NO CAMBIOS' }}"
+      - "Estado: VM lista con IP y hostname instantáneos"
+  tags: [mostrar_resultado] 

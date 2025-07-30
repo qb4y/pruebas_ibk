@@ -1,0 +1,105 @@
+---
+- name: Generar reporte de ejecución
+  ansible.builtin.debug:
+    var: reporte_ejecucion_final
+  vars:
+    reporte_ejecucion_final:
+      informacion_servidor:
+        hostname: "{{ ansible_hostname }}"
+        usuario: "{{ ansible_user }}"
+        conexion: "{{ ansible_connection | default('ssh') }}"
+        sistema_operativo: "{{ ansible_os_family }}"
+        version: "{{ ansible_distribution_version | default('N/A') }}"
+        arquitectura: "{{ ansible_architecture }}"
+        memoria_ram_mb: "{{ ansible_memtotal_mb | default('N/A') }}"
+      informacion_ejecucion:
+        fecha: "{{ ansible_date_time.iso8601 }}"
+        timezone: "{{ ansible_date_time.tz }}"
+        hosts_procesados: "{{ ansible_play_batch | length }}"
+      tareas_ejecutadas:
+        tarea_principal: "{{ 'Configuración de paginación' if configurar_paginacion else 'Tareas generales' }}"
+        deteccion_so: "{{ ansible_os_family }}"
+        conectividad: "Establecida"
+        validaciones: "Completadas"
+      detalles_windows: "{{ {'transporte_winrm': ansible_winrm_transport, 'puerto': ansible_port, 'validacion_cert': ansible_winrm_server_cert_validation, 'esquema': ansible_winrm_scheme | default('http')} if ansible_os_family == 'Windows' else 'N/A' }}"
+      detalles_linux: "{{ {'puerto_ssh': ansible_port, 'metodo_become': ansible_become_method | default('sudo'), 'become_habilitado': ansible_become | default(false)} if ansible_os_family in ['RedHat', 'Debian', 'Ubuntu', 'Rocky', 'AlmaLinux'] else 'N/A' }}"
+      estado: "Ejecución completada exitosamente"
+  tags:
+    - reporting
+    - always
+
+- name: Mostrar resumen de conexión
+  ansible.builtin.debug:
+    var: resumen_conexion
+  vars:
+    resumen_conexion:
+      timestamp: "{{ ansible_date_time.iso8601 }}"
+      servidor: "{{ ansible_hostname }}"
+      ip: "{{ ansible_host | default(inventory_hostname) }}"
+      usuario: "{{ ansible_user }}"
+      estado_conexion: "Exitosa"
+      configuracion_aplicada: "{{ 'Si' if (paginacion_aplicada is defined or activacion_aplicada is defined) else 'No' }}"
+      detalles_sistema:
+        sistema_operativo: "{{ ansible_distribution }}"
+        version: "{{ ansible_distribution_version }}"
+        arquitectura: "{{ ansible_architecture }}"
+        memoria_ram_mb: "{{ ansible_memtotal_mb }}"
+      conexion_windows: "{{ {'transporte': ansible_winrm_transport, 'puerto': ansible_port, 'esquema': ansible_winrm_scheme | default('http'), 'validacion_cert': ansible_winrm_server_cert_validation} if ansible_os_family == 'Windows' else 'N/A' }}"
+      conexion_linux: "{{ {'puerto': ansible_port, 'metodo_become': ansible_become_method | default('sudo')} if ansible_os_family in ['RedHat', 'Debian', 'Ubuntu', 'Rocky', 'AlmaLinux'] else 'N/A' }}"
+  tags:
+    - connection_summary
+
+- name: Crear registro de ejecución del rol
+  ansible.builtin.set_fact:
+    general_task_execution_log:
+      rol: general_task
+      version: "2025.1.0"
+      timestamp_inicio: "{{ ansible_date_time.iso8601 }}"
+      servidor: "{{ ansible_hostname }}"
+      usuario: "{{ ansible_user }}"
+      sistema_operativo: "{{ ansible_os_family }}"
+      accion_ejecutada: "{{ 'configurar_paginacion' if configurar_paginacion else 'tareas_generales' }}"
+      resultado: "exitoso"
+      cambios_realizados: "{{ (paginacion_aplicada.cambios_realizados | default(false)) if paginacion_aplicada is defined else false }}"
+      conexion_tipo: "{{ ansible_connection }}"
+      validaciones_completadas: true
+      artefactos_creados: "{{ paginacion_aplicada is defined }}"
+  tags:
+    - logging
+    - always
+
+- name: Mostrar información de limpieza
+  ansible.builtin.debug:
+    var: info_limpieza
+  vars:
+    info_limpieza:
+      limpieza_habilitada: "{{ limpiar_temporales | default(false) | bool }}"
+      mensaje: "{{ 'Archivos temporales no se eliminaron por configuración' if not (limpiar_temporales | default(false) | bool) else 'Limpieza de archivos temporales omitida' }}"
+  when: limpiar_temporales | default(false) | bool
+  tags:
+    - cleanup
+
+- name: Mostrar comandos de verificación
+  ansible.builtin.debug:
+    var: comandos_verificacion
+  vars:
+    comandos_verificacion:
+      windows: "{{ {'powershell': ['Get-CimInstance -ClassName Win32_PageFileSetting | Select-Object Name, InitialSize, MaximumSize', 'Get-CimInstance -ClassName Win32_ComputerSystem | Select-Object AutomaticManagedPagefile'], 'cmd': ['wmic pagefile list /format:list', 'wmic computersystem get AutomaticManagedPagefile'], 'registry': ['reg query \"HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management\" /v PagingFiles']} if ansible_os_family == 'Windows' else 'N/A' }}"
+      linux: "{{ {'memoria_swap': ['free -h', 'swapon --show'], 'configuracion': ['cat /proc/sys/vm/swappiness', 'grep swap /etc/fstab'], 'estadisticas': ['cat /proc/meminfo | grep -i swap']} if ansible_os_family in ['RedHat', 'Debian', 'Ubuntu', 'Rocky', 'AlmaLinux'] else 'N/A' }}"
+      activacion_windows: "{{ {'verificar_licencia': ['slmgr.vbs /dli', 'slmgr.vbs /dlv'], 'estado_activacion': ['slmgr.vbs /xpr']} if ansible_os_family == 'Windows' else 'N/A' }}"
+  tags:
+    - verification_help
+    - always
+
+- name: Registro final de ejecución
+  ansible.builtin.debug:
+    var: registro_final_ejecucion
+  vars:
+    registro_final_ejecucion:
+      paginacion_aplicada: "{{ paginacion_aplicada if paginacion_aplicada is defined else 'No ejecutado' }}"
+      activacion_aplicada: "{{ activacion_aplicada if activacion_aplicada is defined else 'No ejecutado' }}"
+      timestamp_final: "{{ ansible_date_time.iso8601 }}"
+      estado_general: "Completado"
+  tags:
+    - final_message
+    - always

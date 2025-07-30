@@ -1,0 +1,49 @@
+---
+# Common Variables for Windows Patch Management Roles
+# Following Kyndryl Standards for Technological Platform Consistency
+
+# Common Return Codes for Windows Patch Management
+winpatch_common_return_codes:
+  success:
+    2000: "Updates installed successfully"
+    2001: "No updates available"
+    2002: "Updates downloaded only"
+  error:
+    3000: "Invalid patching mode specified"
+    3001: "Missing required variables for WSUS mode"
+    3002: "Missing required variables for SCCM mode"
+    3003: "WSUS server connectivity failure"
+    3004: "SCCM connectivity failure"
+    3005: "Insufficient disk space for updates"
+    3006: "Windows Update service failure"
+    3007: "Update installation failed"
+    3008: "System reboot failed"
+    3009: "AD OU registration failed"
+    3010: "WSUS client configuration failed"
+    3011: "Rescue procedures failed"
+    3012: "Service restoration failed"
+
+# Common Update Categories
+winpatch_update_categories:
+  - CriticalUpdates
+  - SecurityUpdates
+  - UpdateRollups
+  - Updates
+  - DefinitionUpdates
+
+# Common Operations
+winpatch_operations:
+  - install
+  - download
+
+# Common Patching Modes
+winpatch_modes:
+  - wsus
+  - sccm
+
+# Common Environment Types
+winpatch_environments:
+  - PROD
+  - TEST
+  - DEV
+  - STAGE 

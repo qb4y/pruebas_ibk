@@ -1,0 +1,15 @@
+- name: Paso 0 - Identificar instalador
+  ansible.builtin.import_tasks: step_0_identify_package.yml
+
+- name: Paso 1 - Verificar instalacion previa de Nessus
+  ansible.builtin.import_tasks: step_1_check_package_exists.yml
+
+- name: Paso 2 - Verificar URL de descarga accesible
+  ansible.builtin.import_tasks: step_2_check_url_reachable.yml
+
+- name: Paso 3 - Verificar permisos de escritura en disco
+  ansible.builtin.import_tasks: step_3_check_write_permissions.yml
+
+- name: ✅ Todos los prechecks Windows fueron completados con éxito
+  ansible.builtin.debug:
+    msg: "✔️ Todos los prechecks Windows pasaron. Procediendo con la instalación del agente Nessus."

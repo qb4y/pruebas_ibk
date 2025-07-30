@@ -1,0 +1,75 @@
+---
+- name: "Verificar que IP no esté en uso mediante SSH"
+  ansible.builtin.wait_for:
+    host: "{{ vm_nics[0].vm_ip_address }}"
+    port: 22
+    timeout: 3
+    state: stopped
+  register: ssh_check
+  ignore_errors: true
+  tags: [validacion, pre_tasks, ip_disponible]
+
+- name: "Verificar que IP no esté en uso mediante RDP"
+  ansible.builtin.wait_for:
+    host: "{{ vm_nics[0].vm_ip_address }}"
+    port: 3389
+    timeout: 3
+    state: stopped
+  register: rdp_check
+  ignore_errors: true
+  tags: [validacion, pre_tasks, ip_disponible]
+
+- name: "Verificar que IP no esté en uso mediante Telnet"
+  ansible.builtin.wait_for:
+    host: "{{ vm_nics[0].vm_ip_address }}"
+    port: 23
+    timeout: 3
+    state: stopped
+  register: telnet_check
+  ignore_errors: true
+  tags: [validacion, pre_tasks, ip_disponible]
+
+- name: "Validar que IP esté disponible"
+  ansible.builtin.assert:
+    that:
+      - ssh_check.state == 'stopped'
+      - rdp_check.state == 'stopped' 
+      - telnet_check.state == 'stopped'
+    fail_msg: |
+      IP {{ vm_nics[0].vm_ip_address }} está en uso:
+      - SSH (22): {{ 'OCUPADO' if ssh_check.state == 'started' else 'LIBRE' }}
+      - RDP (3389): {{ 'OCUPADO' if rdp_check.state == 'started' else 'LIBRE' }}
+      - Telnet (23): {{ 'OCUPADO' if telnet_check.state == 'started' else 'LIBRE' }}
+    success_msg: "IP {{ vm_nics[0].vm_ip_address }} disponible"
+  tags: [validacion, pre_tasks, ip_disponible]
+
+- name: "Verificar conectividad SSH con credenciales operator"
+  ansible.builtin.wait_for:
+    host: "{{ vm_nics[0].vm_ip_address }}"
+    port: 22
+    timeout: 5
+  register: ssh_connectivity
+  failed_when: false
+  tags: [validacion, pre_tasks, ip_disponible]
+
+- name: "Verificar conectividad RDP con credenciales operator"  
+  ansible.builtin.wait_for:
+    host: "{{ vm_nics[0].vm_ip_address }}"
+    port: 3389
+    timeout: 5
+  register: rdp_connectivity
+  failed_when: false
+  when: vm_ostype == 'windows'
+  tags: [validacion, pre_tasks, ip_disponible]
+
+- name: "Resumen de verificación IP"
+  ansible.builtin.debug:
+    msg:
+      - "VERIFICACIÓN IP COMPLETADA"
+      - "IP objetivo: {{ vm_nics[0].vm_ip_address }}"
+      - "SSH disponible: {{ 'NO' if ssh_check.state == 'stopped' else 'SI - EN USO' }}"
+      - "RDP disponible: {{ 'NO' if rdp_check.state == 'stopped' else 'SI - EN USO' }}"
+      - "Estado final: IP LISTA PARA USO"
+      - "Usuario validación: operator"
+      - "Red: {{ vm_nics[0].vm_port_group }}"
+  tags: [validacion, pre_tasks, ip_disponible]

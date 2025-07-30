@@ -1,0 +1,14 @@
+---
+# defaults file for post_patching_validation
+
+reboot_required: false
+force_reboot: false
+fail_on_error: true
+send_email: false
+recipients: []
+smtp_host_ip: ''
+smtp_port: 25
+teams_notification: false
+channel_webhook_url: ''
+service_restart_list: ''
+app_service_start_script: ''

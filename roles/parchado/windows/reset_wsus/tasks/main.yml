@@ -1,0 +1,24 @@
+---
+# tasks file for ansible_script_connection
+
+- name: Create directory for the script
+  win_file:
+    path: C:\temp
+    state: directory
+
+- name: Copy script
+  win_template:
+    src: "reset.ps1.j2"
+    dest: C:\temp\reset.ps1
+
+
+- name: Run shell script
+  win_shell: "C:\\temp\\reset.ps1"
+
+- name: Remove script
+  win_file:
+    path: C:\temp\reset.ps1
+    state: absent
+
+- name: Reboot the machine for finish the fix of wupdate services
+  win_reboot:

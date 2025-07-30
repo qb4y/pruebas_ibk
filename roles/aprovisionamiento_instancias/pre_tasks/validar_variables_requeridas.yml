@@ -1,0 +1,112 @@
+---
+- name: "Validar variables de conexión vCenter"
+  ansible.builtin.assert:
+    that:
+      - vcenter_hostname is defined and vcenter_hostname != ""
+      - vcenter_username is defined and vcenter_username != ""
+      - vcenter_password is defined and vcenter_password != ""
+    fail_msg: "Variables de conexión vCenter requeridas: vcenter_hostname, vcenter_username, vcenter_password"
+    success_msg: "Variables de conexión vCenter validadas correctamente"
+  tags: [validacion, pre_tasks, vcenter]
+
+- name: "Validar variables de VM"
+  ansible.builtin.assert:
+    that:
+      - vm_hostname is defined and vm_hostname != ""
+      - vm_template is defined and vm_template != ""
+      - datacenter is defined and datacenter != ""
+      - cluster is defined and cluster != ""
+      - datastore is defined and datastore != ""
+    fail_msg: "Variables de VM requeridas: vm_hostname, vm_template, datacenter, cluster, datastore"
+    success_msg: "Variables de VM validadas correctamente"
+  tags: [validacion, pre_tasks, vm]
+
+- name: "Validar configuración de red"
+  ansible.builtin.assert:
+    that:
+      - vm_nics is defined and vm_nics | length > 0
+      - vm_nics[0].vm_ip_address is defined
+      - vm_nics[0].vm_ip_address | ipaddr
+      - vm_nics[0].vm_port_group is defined and vm_nics[0].vm_port_group != ""
+      - vm_nics[0].vm_netmask is defined and vm_nics[0].vm_netmask | ipaddr
+      - vm_nics[0].vm_gateway is defined and vm_nics[0].vm_gateway | ipaddr
+    fail_msg: "Configuración de red inválida. Verificar vm_nics con IP, red, máscara y gateway válidos"
+    success_msg: "Configuración de red validada correctamente"
+  tags: [validacion, pre_tasks, red]
+
+- name: "Validar operaciones habilitadas"
+  ansible.builtin.assert:
+    that:
+      - operaciones_habilitadas is defined
+      - operaciones_habilitadas | length > 0
+      - operaciones_habilitadas | intersect(['vm_delete', 'crearVm', 'vmGetInfo']) | length > 0
+    fail_msg: "Se debe especificar al menos una operación válida: vm_delete, crearVm, vmGetInfo"
+    success_msg: "Operaciones validadas correctamente"
+  tags: [validacion, pre_tasks, operaciones]
+
+- name: "Establecer credenciales de dominio y operator"
+  ansible.builtin.set_fact:
+    domain_admin_password: "{{ domain_admin_password | default('Interbank2024!') }}"
+    local_admin_password: "{{ local_admin_password | default('Bugtraq12') }}"
+    local_admin_user: "{{ local_admin_user | default('operator') }}"
+    operator_user: "operator"
+    operator_password: "Bugtraq12"
+  tags: [validacion, pre_tasks, credenciales]
+
+- name: "Verificar que las credenciales estén definidas"
+  ansible.builtin.assert:
+    that:
+      - domain_admin_password != ""
+      - local_admin_password != ""
+      - local_admin_user != ""
+      - operator_user != ""
+      - operator_password != ""
+    fail_msg: "Las credenciales de dominio, administrador local (operator) son requeridas"
+    success_msg: "Credenciales de dominio, local (operator) y operator validadas"
+  tags: [validacion, pre_tasks, credenciales]
+
+- name: "Validar configuración de hardware"
+  ansible.builtin.set_fact:
+    vm_memory_validated: "{{ vm_memory | default(4096) | int }}"
+    vm_cpu_validated: "{{ vm_cpu | default(2) | int }}"
+    vm_cores_validated: 1
+  tags: [validacion, pre_tasks, hardware]
+
+- name: "Verificar valores de hardware válidos"
+  ansible.builtin.assert:
+    that:
+      - vm_memory_validated | int >= 1024
+      - vm_memory_validated | int <= 65536
+      - vm_cpu_validated | int >= 1
+      - vm_cpu_validated | int <= 32
+      - vm_cores_validated | int >= 1
+      - vm_cores_validated | int <= (vm_cpu_validated | int)
+    fail_msg: "Configuración de hardware inválida (RAM: 1-65536MB, CPU: 1-32, Cores <= CPUs)"
+    success_msg: "Configuración de hardware validada"
+  tags: [validacion, pre_tasks, hardware]
+
+- name: "Validar tipo de sistema operativo"
+  ansible.builtin.assert:
+    that:
+      - vm_ostype | default("linux") in ["windows", "linux"]
+    fail_msg: "vm_ostype debe ser windows o linux"
+    success_msg: "Tipo de OS validado: {{ vm_ostype | default('linux') }}"
+  tags: [validacion, pre_tasks, os_type]
+
+- name: "Resumen de validación de variables"
+  ansible.builtin.debug:
+    msg:
+      - "VALIDACIÓN DE VARIABLES COMPLETADA"
+      - "vCenter: {{ vcenter_hostname }}"
+      - "VM: {{ vm_hostname }}"
+      - "Template: {{ vm_template }}"
+      - "Datacenter: {{ datacenter }}"
+      - "IP asignada: {{ vm_nics[0].vm_ip_address }}"
+      - "Red: {{ vm_nics[0].vm_port_group }}"
+      - "RAM: {{ vm_memory_validated }}MB"
+      - "CPUs: {{ vm_cpu_validated }}"
+      - "Operaciones: {{ operaciones_habilitadas | join(', ') }}"
+      - "Credenciales: Validadas (domain, operator)"
+      - "Usuario administrador local: {{ local_admin_user }}"
+      - "Usuario operator: {{ operator_user }}"
+  tags: [validacion, pre_tasks, resumen]

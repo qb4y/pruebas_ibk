@@ -1,0 +1,96 @@
+---
+- name: Run zypper update on host - update & upgrade
+  block:
+
+    - name: Run zypper update  # noqa package-latest
+      community.general.zypper:
+        name: '*'
+        state: latest
+        type: "{{ kernel_patching_suse | ternary('package', 'patch') }}"
+        extra_args: '{{ extra_args_suse }}'
+      register: update_rcp_result
+      async: "{{ async_value }}"
+      poll: "{{ poll_value }}"
+
+  rescue:
+
+    - name: Return code incase of Suse update_all or rcp_all fails
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5009
+        rc_message: "Suse update_all or rcp_all patching failed."
+
+    - name: Update exec_message
+      ansible.builtin.set_fact:
+        patch_status: 'failure'
+        exec_message:
+          "{{ exec_message }}
+          Patching result:\n\n
+          Patch installation FAILED, please perform manual patching.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Suse update_all or rcp_all patching failed"
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+# Nothing to do here, all packages are up to date
+- name: Nothing to do here, all packages are up to date
+  when:
+    - update_rcp_result is not failed
+    - not update_rcp_result.changed
+  block:
+
+    - name: Set returncode
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_success: true
+        rc_message: "Nothing to do here, all packages are up to date"
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        patch_status: 'nothing_to_do'
+        exec_message:
+          "{{ exec_message }}
+          Patching result:\n\n
+          Nothing to do here, all packages are up to date.\n\n"
+
+- name: Patches installed successfully
+  when:
+    - update_rcp_result is not failed
+    - update_rcp_result.changed
+  block:
+
+    - name: Set returncode
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_success: true
+        rc_message: "Patches installed successfully"
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        patch_status: 'success'
+        exec_message:
+          "{{ exec_message }}
+          Patching result:\n\n
+          Patches installed successfully.\n\n"

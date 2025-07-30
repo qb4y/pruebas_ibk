@@ -1,0 +1,54 @@
+---
+- name: KBs list validation fail
+  fail:
+    msg: "Please insert the KBs list in the right format: 'KB12345 KB67890' or 'ALL'"
+  when: update_code.strip() is not regex("^(KB\\d+\\s)+(KB\\d+)$|^(KB\\d+)$|^(ALL)$")
+
+- name: create a temp directory to save the PS script
+  win_tempfile:
+    state: directory
+    prefix: update_size
+    path: "%windir%/temp"
+  register: dir_output
+
+- name: copy PS script to endopint
+  win_copy:
+    src: sccm_and_disk_space_check.ps1
+    dest: "{{ dir_output.path }}/sccm_and_disk_space_check.ps1"
+
+- name: Execute PS script to check SCCM connectivity and free disk space
+  block:
+    - name: Execute PS script to check SCCM connectivity and free disk space
+      win_shell: '{{ dir_output.path }}/sccm_and_disk_space_check.ps1 "{{ update_code.strip() }}"'
+      register: script_output
+      changed_when: false
+      async: 600
+      poll: 0
+
+    - name: Check PS script status
+      async_status:
+        jid: "{{ script_output.ansible_job_id }}"
+      register: script_status
+      until: script_status.finished
+      retries: 20
+      delay: 30
+      ignore_errors: true
+
+  always:
+    - name: Delete PS file
+      win_file:
+        state: absent
+        path: "{{ dir_output.path }}/sccm_and_disk_space_check.ps1"
+
+- name: Script error
+  fail:
+    msg:
+      - "Error occurred while executing the script"
+      - "{{ script_status.stderr_lines }}"
+  when:
+    - script_status.stderr is defined
+    - script_status.stderr | length > 0
+
+- name: Script executed succefully
+  debug:
+    msg: "{{ script_status.stdout_lines }}"

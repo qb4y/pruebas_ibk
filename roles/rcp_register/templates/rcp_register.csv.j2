@@ -1,0 +1,2 @@
+rcp_product_alias(*),version,device_name(*),ipaddress(*),device_cutoff_date (yyyy-mm-dd),new_version,schedule,device_tags(semi-colon delimited)
+{{ rcp_os_version }},{{ ansible_kernel | default('') }},{{ rcp_hostname }},{{ rcp_ip_address }},{{ ansible_date_time.date }},,{{ ansible_date_time.date }},

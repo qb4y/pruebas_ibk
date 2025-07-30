@@ -1,0 +1,234 @@
+{
+	"definitions": {},
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "https://github.kyndryl.net/Continuous-Engineering/ansible_collection_patching_unix/kyndryl-governance/linux_patching.json",
+	"title": "Linux Patching Common Variables",
+	"type": "object",
+	"required": [],
+	"properties": {
+        "patch_type": {
+            "$id": "#root/patch_type",
+            "title": "Patch Type",
+            "description": "The type of patches need to be applied.",
+            "type": "string",
+            "default": "update_all",
+            "pattern": "^((update|rcp|security|bugfix)_all|severity_(high|medium|low|all)|download_only|install_from_folder|.*(RHBA|RHSA|CVE|ELSA).*)$"
+        },
+        "patch_source": {
+            "$id": "#root/patch_source",
+            "title": "Patch Source",
+            "description": "Patching source.",
+            "type": "string",
+            "default": "satellite",
+			"enum": [
+				"satellite",
+				"internet",
+				"reposerver",
+				"susemanager"
+			]
+        },
+        "package_download_location": {
+            "$id": "#root/package_download_location",
+            "title": "The location to download the packages.",
+            "description": "The location to download the packages.",
+            "type": "string",
+            "default": "",
+            "pattern": "^/?.*$"
+        },
+		"backup_to_jumphost": {
+            "$id": "#root/backup_to_jumphost",
+			"title": "Config Backup to Jumphost?",
+			"description": "Save configuration backup to jumphost?",
+			"type": "boolean",
+			"default": false
+		},
+        "jumphost_path": {
+            "$id": "#root/jumphost_path",
+            "title": "Jumphost path to save config backup",
+            "description": "Path on the jumphost server where configuration backup would be saved.",
+            "type": "string",
+            "default": "/tmp",
+            "pattern": "^/?.*$"
+        },
+        "reboot_required": {
+            "$id": "#root/reboot_required",
+			"title": "Reboot Required?",
+			"description": "Server reboot required post patching?",
+			"type": "boolean",
+			"default": false
+		},
+        "force_reboot": {
+            "$id": "#root/force_reboot",
+			"title": "Force Reboot?",
+			"description": "Server still needs to be rebooted even if server is already up-to-date? reboot_required variable needs to be set to true to enable this feature.",
+			"type": "boolean",
+			"default": false
+		},
+        "filesystems_to_check": {
+            "$id": "#root/filesystems_to_check",
+            "title": "Filesystems to be checked for free space",
+            "description": "Filesystems (other than /var and /boot) need to be checked for required free space. The FS list should be in an array format.",
+            "type": "array",
+            "items": {
+                "type": "string",
+                "pattern": "^\\/.*$"
+            }
+        },
+        "boot_space_threshold_mb": {
+            "$id": "#root/boot_space_threshold_mb",
+            "title": "/boot space threshold in MBs",
+            "description": "Available space threshold for /boot file system in MBs.",
+            "type": "integer",
+            "default": "256",
+            "minimum": 1,
+            "maximum": 1024
+        },
+        "other_fs_space_threshold_perc": {
+            "$id": "#root/other_fs_space_threshold_perc",
+            "title": "Other FS space threshold",
+            "description": "Available space threshold percentage for filesystems other than /var and /boot.",
+            "type": "integer",
+            "default": "25",
+            "minimum": 1,
+            "maximum": 100
+        },
+        "yum_exclude_patch_list": {
+            "$id": "#root/yum_exclude_patch_list",
+            "title": "List of patches to be excluded for RHEL/CentOS",
+            "description": "Comma separated list of patches to be excluded. Only works for RHEL and CentOS. An asterisk (*) can be used as a wildcard character to specify a set of patches. patch_type variable needs to be set to update_all or rcp_all for this functionality.",
+            "type": "string",
+            "default": "",
+            "pattern": "^.*$"
+        },
+        "fail_on_error": {
+            "$id": "#root/fail_on_error",
+			"title": "Fail the execution if error occurs?",
+			"description": "Switch to decide whether execution should fail in case of unsuccessful patching.",
+			"type": "boolean",
+			"default": true
+		},
+        "skip_cluster_check": {
+            "$id": "#root/skip_cluster_check",
+			"title": "Skip Cluster Check?",
+			"description": "Switch to decide whether cluster check needs to be skipped so that nodes part of OS cluster can be patched as well.",
+			"type": "boolean",
+			"default": true
+		},
+		"system_load_check": {
+            "$id": "#root/system_load_check",
+			"title": "System Load Check?",
+			"description": "Switch to decide whether memory and cpu usage on the end server need to be checked before patching.",
+			"type": "boolean",
+			"default": false
+		},
+		"teams_notification": {
+            "$id": "#root/teams_notification",
+			"title": "Teams Notification Required?",
+			"description": "Switch to decide whether MS Teams notification is required.",
+			"type": "boolean",
+			"default": false
+		},
+		"channel_webhook_url": {
+            "$id": "#root/channel_webhook_url",
+            "title": "Channel Webhook url",
+            "description": "MS Teams channel webhook url to receive notifications.",
+            "type": "string",
+            "default": "",
+            "pattern": "^(https?:\\/\\/.*)?$"
+        },
+		"send_email": {
+            "$id": "#root/send_email",
+			"title": "Email Notification Required?",
+			"description": "Switch to decide whether email notification is required.",
+			"type": "boolean",
+			"default": false
+		},
+		"recipients": {
+            "$id": "#root/recipients",
+            "title": "List of email recipients",
+            "description": "List of email recipients in array format.",
+            "type": "array",
+            "items": {
+                "type": "string",
+                "pattern": "^.*@.*$"
+            }
+        },
+        "smtp_port": {
+            "$id": "#root/smtp_port",
+            "title": "SMTP Port",
+            "description": "SMTP port.",
+            "type": "integer",
+            "default": "25",
+            "minimum": 1,
+            "maximum": 65535
+        },
+		"smtp_host_ip": {
+            "$id": "#root/smtp_host_ip",
+            "title": "SMTP host IP address",
+            "description": "SMTP host IP address.",
+            "type": "string",
+            "default": "",
+            "pattern": "^\\d+\\.\\d+\\.\\d+\\.\\d+$"
+        },
+		"attach_config_data": {
+            "$id": "#root/attach_config_data",
+			"title": "Attach config data to email?",
+			"description": "Switch to decide whether pre and post patching config files need to be attached to the consolidated email.",
+			"type": "boolean",
+			"default": false
+		},
+		"sfs_upload": {
+            "$id": "#root/sfs_upload",
+			"title": "Upload results to SFS?",
+			"description": "Switch to decide whether patching results need to be uploaded to SFS.",
+			"type": "boolean",
+			"default": false
+		},
+		"service_restart_list": {
+            "$id": "#root/service_restart_list",
+            "title": "OS services to be restarted",
+            "description": "Comma separated list of OS services which need to be stopped before patching and started after successful patching.",
+            "type": "string",
+            "default": "",
+            "pattern": "^.*$"
+        },
+		"app_service_stop_script": {
+            "$id": "#root/app_service_stop_script",
+            "title": "Script to stop application services",
+            "description": "Absolute path to the script to stop application services before patching.",
+            "type": "string",
+            "default": "",
+            "pattern": "^/?.*$"
+        },
+		"app_service_start_script": {
+            "$id": "#root/app_service_start_script",
+            "title": "Script to start application services",
+            "description": "Absolute path to the script to start application services before patching.",
+            "type": "string",
+            "default": "",
+            "pattern": "^/?.*$"
+        },
+		"yum_clean_all": {
+            "$id": "#root/yum_clean_all",
+			"title": "Run yum clean all on RHEL?",
+			"description": "Switch to decide whether yum clear all command needs to be run after successful patching on RHEL OS.",
+			"type": "boolean",
+			"default": false
+		},
+		"extra_args_suse": {
+            "$id": "#root/extra_args_suse",
+            "title": "Extra arguments for SUSE OS",
+            "description": "Add additional options to zypper command using this variable.",
+            "type": "string",
+            "default": "",
+            "pattern": "^.*$"
+        },
+		"kernel_patching_suse": {
+            "$id": "#root/kernel_patching_suse",
+			"title": "Kernel patching for SUSE OS?",
+			"description": "Switch to decide whether kernel patching needs to be performed on Suse OS.",
+			"type": "boolean",
+			"default": false
+		}
+	}
+}

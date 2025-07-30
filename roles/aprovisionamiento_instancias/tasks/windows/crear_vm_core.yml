@@ -1,0 +1,72 @@
+---
+# Módulo: Core Creación VM Windows
+# Función: Crear VM con POLLING INTELIGENTE (maneja reinicios Windows)
+
+- name: "Crear VM con customization SIN esperar (evitar colgado)"
+  community.vmware.vmware_guest:
+    hostname: "{{ vcenter_hostname }}"
+    username: "{{ vcenter_username }}"
+    password: "{{ vcenter_password }}"
+    validate_certs: "{{ validate_certs | default(false) | bool }}"
+    annotation: "{{ annotation | default('VM creada por Ansible - Polling Inteligente') }}"
+    cluster: "{{ cluster | default(omit) }}"
+    convert: "{{ disk_type | default('thin') }}"
+    customization: "{{ customization | default({}) }}"
+    datacenter: "{{ datacenter }}"
+    datastore: "{{ datastore | default(omit) }}"
+    disk: "{{ [disk] if disk is mapping else disk | default([]) }}"
+    folder: "/{{ datacenter }}/vm/{{ folder }}"
+    hardware: "{{ hardware | default({}) }}"
+    name: "{{ vm_hostname }}"
+    networks: "{{ networks }}"
+    resource_pool: "{{ resource_pool | default(omit) }}"
+    state: "{{ state | default('powered-on') }}"
+    template: "{{ vm_template }}"
+    # CRÍTICO: NO ESPERAR customization (evitar colgado)
+    wait_for_customization: false              # NO esperar (manejamos nosotros)
+    wait_for_ip_address: false                 # NO esperar IP (manejamos nosotros)
+    state_change_timeout: 300                  # Máximo 5 minutos para crear VM base
+    force: false                               # No forzar, que VMware maneje duplicados
+  register: vm_creation_status
+  tags: [crear_vm_core, crear_vm]
+
+#- name: "BUCLE INTELIGENTE: Verificar VM completamente lista (IP + hostname + tools)"
+#  community.vmware.vmware_guest_info:
+#    hostname: "{{ vcenter_hostname }}"
+#    username: "{{ vcenter_username }}"
+#    password: "{{ vcenter_password }}"
+#    validate_certs: "{{ validate_certs | default(false) | bool }}"
+#    datacenter: "{{ datacenter }}"
+#    name: "{{ vm_hostname }}"
+#  register: vm_status_check
+#  until:
+#    # CONDICIONES MÚLTIPLES: VM REALMENTE LISTA (estructura robusta)
+#    - vm_status_check.instance is defined
+#    - >
+#      (vm_status_check.instance.runtime.powerState | default('') == "poweredOn") or
+#      (vm_status_check.instance.hw_power_state | default('') == "poweredOn") or
+#      (vm_status_check.instance.power_state | default('') == "POWERED_ON")
+#    - vm_status_check.instance.ipv4 is defined
+#    - vm_status_check.instance.ipv4 == networks[0].ip  # IP correcta asignada
+#    - vm_status_check.instance.guest is defined
+#    - vm_status_check.instance.guest.hostname is defined
+#    - vm_status_check.instance.guest.hostname | lower == (customization.hostname | lower)  # Hostname correcto
+#    - vm_status_check.instance.guest.toolsStatus == "toolsOk"  # Tools funcionando
+#  retries: 20        # 20 intentos = 20 minutos máximo
+#  delay: 60          # Cada 1 minuto (optimizado)
+#  failed_when: false
+#  tags: [crear_vm_core, polling_inteligente]
+
+#- name: "RESULTADO FINAL VM WINDOWS (JSON)"
+#  ansible.builtin.debug:
+#    msg: "{{ vm_resultado_final | to_json }}"
+#  vars:
+#    vm_resultado_final:
+#      vm_name: "{{ vm_hostname }}"
+#      ip_address: "{{ vm_status_check.instance.ipv4 }}"
+#      hostname: "{{ vm_status_check.instance.guest.hostname }}"
+#      username: "operator"
+#      password: "Bugtraq12"
+#      rdp_port: 3389
+#      os_type: "windows"
+#  tags: [crear_vm_core, resultado_final] 

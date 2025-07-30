@@ -1,0 +1,219 @@
+---
+
+- name: Run ICV role
+  hosts: all
+  gather_facts: false
+  vars:
+    send_email: false
+    recipients: []
+    smtp_host_ip: ''
+    smtp_port: 25
+    teams_notification: false
+    channel_webhook_url: ''
+    sender: "(Ansible Robot) ansible-robot@kyndryl.com"
+  tasks:
+
+    - name: Set link to documentation and asset
+      ansible.builtin.include_role:
+        name: returncode
+        tasks_from: set_job_properties
+      vars:
+        asset_name: "Linux Patching"
+        documentation:
+          default:
+            "https://github.kyndryl.net/Continuous-Engineering/ansible_collection_patching_unix"
+
+    - name: Run ICV role
+      ansible.builtin.include_role:
+        name: ansible_role_input_control_validate
+      vars:
+        icv_variable_descriptor: "linux_patching.json"
+        icv_playbook_dir_path_level: 1
+
+    - name: Input validation failed
+      when: returncode != "0"
+      block:
+
+        - name: Include communication role - input validation failure
+          when:
+            teams_notification or send_email
+          ansible.builtin.include_role:
+            name: communication
+            tasks_from: validation_failure_communication.yml
+
+        - name: End the job
+          ansible.builtin.fail:
+            msg: "Input validation failed"
+
+- name: Include scan for patches playbook
+  ansible.builtin.import_playbook: ../scan_for_patches_unix.yml
+  when: "'severity' in patch_type or run_patch_scan"
+  vars:
+    upload_results: "{{ true if run_patch_scan else false }}"
+    task_required: true
+    patch_type: "update_all"
+    ansible_distribution: "RedHat"
+    run_patch_scan: false
+
+- name: Prepare SFS upload environment
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    backup_to_jumphost: false
+    send_email: false
+    recipients: []
+    teams_notification: false
+    channel_webhook_url: ''
+    sfs_upload: false
+  tasks:
+    - name: Prepare
+      ansible.builtin.include_role:
+        name: sfs_upload
+      vars:
+        sfs_upload_stage: "prepare"
+        output_dir: "/tmp/gts-ansible/patching"
+      when:
+        backup_to_jumphost or
+        (teams_notification and channel_webhook_url | length) or
+        (send_email and recipients | length) or
+        sfs_upload
+
+- name: Linux patching
+  hosts: all
+  gather_facts: false
+  become: true
+  vars:
+    force_reboot: false
+    send_email: false
+    teams_notification: false
+    recipients: []
+    channel_webhook_url: ''
+    patch_status: 'failure'
+    sfs_upload: false
+    run_patch_scan: false
+    fail_on_error: true
+    patching_pre_req_validation: false
+    continue_execution: true
+    attach_config_data: false
+
+  tasks:
+
+    - name: Set link to documentation and asset
+      ansible.builtin.include_role:
+        name: returncode
+        tasks_from: set_job_properties
+      vars:
+        asset_name: "Linux Patching"
+        documentation:
+          default:
+            "https://github.kyndryl.net/Continuous-Engineering/ansible_collection_patching_unix"
+
+    - name: Initialize exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "Hostname: {{ inventory_hostname }}\n\n"
+      when:
+        (send_email and recipients | length) or
+        sfs_upload
+
+    - name: Include pre_patching_validation role
+      ansible.builtin.include_role:
+        name: pre_patching_validation
+
+    - name: Include redhat_patching role
+      ansible.builtin.include_role:
+        name: redhat_patching
+      when:
+        - patching_pre_req_validation
+        - (ansible_distribution == "RedHat" or
+          ansible_distribution == "Rocky")
+        - continue_execution
+
+    - name: Include centos_patching role
+      ansible.builtin.include_role:
+        name: centos_patching
+      when:
+        - patching_pre_req_validation
+        - ansible_distribution == "CentOS"
+        - continue_execution
+
+    - name: Include oracle_linux_patching role
+      ansible.builtin.include_role:
+        name: oracle_linux_patching
+      when:
+        - patching_pre_req_validation
+        - ansible_distribution == "OracleLinux"
+        - continue_execution
+
+    - name: Include suse_patching role
+      ansible.builtin.include_role:
+        name: suse_patching
+      when:
+        - patching_pre_req_validation
+        - "'SLE' in ansible_distribution"
+        - continue_execution
+
+    - name: Include ubuntu_patching role
+      ansible.builtin.include_role:
+        name: ubuntu_patching
+      when:
+        - patching_pre_req_validation
+        - ansible_distribution == "Ubuntu"
+        - continue_execution
+
+    - name: Include post_patching_validation role
+      ansible.builtin.include_role:
+        name: post_patching_validation
+      when:
+        - patching_pre_req_validation
+        - continue_execution
+
+    - name: Remove lock file
+      when: gathered_facts.unreachable is not defined
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: Set current host for MS team notification
+      ansible.builtin.set_fact:
+        current_host:
+          "{{ inventory_hostname }}"
+
+    - name: Include communication role - individual server level
+      when:
+        teams_notification or
+        send_email or
+        sfs_upload
+      ansible.builtin.include_role:
+        name: communication
+        tasks_from: linux_patching_communication.yml
+      vars:
+        communication_type: "individual"
+
+    - name: Include communication role - consolidated report
+      when:
+        - (teams_notification or sfs_upload or send_email)
+        - inventory_hostname == ansible_play_hosts[-1]
+      ansible.builtin.include_role:
+        name: communication
+        tasks_from: linux_patching_communication.yml
+      vars:
+        communication_type: "consolidated"
+
+    - name: End the job
+      ansible.builtin.fail:
+        msg: "Patching failed"
+      when:
+        - fail_on_error | bool
+        - not continue_execution
+
+- name: Include scan for patches playbook
+  ansible.builtin.import_playbook: ../scan_for_patches_unix.yml
+  when: run_patch_scan
+  vars:
+    upload_results: true
+    task_required: true
+    run_patch_scan: false

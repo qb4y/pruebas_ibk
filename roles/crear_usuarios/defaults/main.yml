@@ -1,0 +1,46 @@
+---
+linux_users:
+  - name: prueba
+    groups: wheel
+    shell: /bin/bash
+
+windows_users:
+  - name: PruebaWin
+    password: 'P@ssw0rd123!'
+    groups: 'Users'
+
+# Cuenta de BD en Windows
+windows_db_account: "IBM_LIMA_MASTER\\IBM_DM"
+windows_db_group: "Administrators"
+
+# Lista de grupos de subsistema de BD con su GID
+db_subsystem_groups:
+  - name: oinstall
+    gid: 54000
+  - name: dba
+    gid: 54100
+  - name: oper
+    gid: 54200
+  - name: asmadmin
+    gid: 54300
+  - name: asmdba
+    gid: 54400
+  - name: asmoper
+    gid: 54500
+  - name: backupdba
+    gid: 54600
+  - name: dgdba
+    gid: 54700
+  - name: kmdba
+    gid: 54800
+  - name: racdba
+    gid: 54900
+
+# Datos del usuario oracle
+db_subsystem_user:
+  name:           oracle
+  uid:            54150
+  primary_group:  oinstall
+  extra_groups:   [ ibmssys, dba, oper, asmadmin, asmdba, asmoper, backupdba, dgdba, kmdba, racdba, wheel ]
+  shell:          /bin/bash
+  home:           /home/oracle

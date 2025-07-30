@@ -1,0 +1,67 @@
+---
+# ========== AUTENTICACIÓN CON AWX ==========
+- name: ✅ Verificar que vault_core se haya ejecutado
+  ansible.builtin.assert:
+    that:
+      - vault_all_secrets is defined
+    fail_msg: |
+      ❌ vault_all_secrets no está definido. 
+      Asegúrate de que el rol vault_core se ejecute antes de awx_register.
+
+- name: 🔐 Cargar credenciales AWX desde Vault
+  ansible.builtin.set_fact:
+    awx_credentials: "{{ vault_all_secrets.awx }}"
+  tags: ["vault"]
+
+- name: 🔐 Establecer variables de conexión AWX
+  ansible.builtin.set_fact:
+    awx_url: "http://{{ awx_credentials.vault_awx_url }}:{{ awx_credentials.vault_awx_port }}"
+    awx_token: "{{ awx_credentials.vault_awx_token }}"
+    awx_verify_ssl: false  # Valor por defecto
+    awx_timeout: 30        # Valor por defecto (int, no string)
+  delegate_to: localhost
+  run_once: true
+  tags: ["vault"]
+
+- name: ✅ Validar credenciales AWX cargadas
+  ansible.builtin.assert:
+    that:
+      - awx_credentials.vault_awx_url is defined and awx_credentials.vault_awx_url != ""
+      - awx_credentials.vault_awx_port is defined and awx_credentials.vault_awx_port != ""
+      - awx_token is defined and awx_token != ""
+    fail_msg: "❌ Credenciales AWX no fueron cargadas correctamente desde Vault"
+  tags: ["vault"]
+
+- name: 📋 Mostrar configuración AWX (sin credenciales)
+  ansible.builtin.debug:
+    msg:
+      - "🔗 AWX URL: {{ awx_url }}"
+      - "🖥️  Host: {{ awx_credentials.vault_awx_url }}"
+      - "🔌 Puerto: {{ awx_credentials.vault_awx_port }}"
+      - "🔒 SSL Verify: false (por defecto)"
+      - "⏱️  Timeout: {{ awx_timeout }}s (por defecto)"
+      - "🔄 Ejecutado independientemente"
+  delegate_to: localhost
+  run_once: true
+
+# ========== VERIFICAR CONECTIVIDAD CON AWX ==========
+- name: 🔍 Verificar conectividad con AWX API
+  ansible.builtin.uri:
+    url: "{{ awx_url }}/api/v2/ping/"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ awx_token }}"
+    validate_certs: "{{ awx_verify_ssl }}"
+    timeout: "{{ awx_timeout }}"
+    status_code: 200
+  register: awx_ping_result
+  delegate_to: localhost
+  run_once: true
+
+- name: ✅ Confirmar conectividad AWX exitosa
+  ansible.builtin.debug:
+    msg: 
+      - "🎉 Conectividad con AWX exitosa"
+      - "📡 Respuesta: {{ awx_ping_result.json.version if awx_ping_result.json.version is defined else 'AWX conectado' }}"
+  delegate_to: localhost
+  run_once: true

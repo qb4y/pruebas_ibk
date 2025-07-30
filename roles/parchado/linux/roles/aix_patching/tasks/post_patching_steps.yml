@@ -1,0 +1,272 @@
+---
+
+- name: Restore sendmail.cf and inetd.conf files, if required
+  block:
+
+    - name: Check if sendmail.cf file exists
+      ansible.builtin.stat:
+        path: >
+          /etc/mail/sendmail.cf.{{ ansible_date_time.day +
+          ansible_date_time.month + ansible_date_time.year }}
+      register: sendmail_conf_stat
+
+    - name: Check if inetd.conf file exists
+      ansible.builtin.stat:
+        path: >
+          /etc/inetd.conf.{{ ansible_date_time.day +
+          ansible_date_time.month + ansible_date_time.year }}
+      register: inetd_conf_stat
+
+    - name: Handle sendmail.cf restore if exists
+      when: sendmail_conf_stat.stat.exists
+      block:
+        - name: Check sendmail.cf file for any modifications
+          ansible.builtin.shell: >
+            diff /etc/mail/sendmail.cf /etc/mail/sendmail.cf.{{
+            ansible_date_time.day + ansible_date_time.month +
+            ansible_date_time.year }}
+          changed_when: false
+          register: sendmail_diff
+          failed_when: sendmail_diff.rc > 1
+
+        - name:
+            Restore sendmail.cf file
+            if any changes are found  # noqa risky-file-permissions
+          ansible.builtin.copy:
+            src:
+              /etc/mail/sendmail.cf.{{ ansible_date_time.day +
+              ansible_date_time.month + ansible_date_time.year }}
+            dest: /etc/mail/sendmail.cf
+            remote_src: true
+          when: sendmail_diff.rc == 1
+
+    - name: Handle inetd.conf restore if exists
+      when: inetd_conf_stat.stat.exists
+      block:
+        - name: Check inetd.conf file for any modifications
+          ansible.builtin.shell: >
+            diff /etc/inetd.conf /etc/inetd.conf.{{ ansible_date_time.day +
+            ansible_date_time.month + ansible_date_time.year }}
+          changed_when: false
+          register: inetd_diff
+          failed_when: inetd_diff.rc > 1
+
+        - name:
+            Restore inetd.conf file
+            if any changes are found  # noqa risky-file-permissions
+          ansible.builtin.copy:
+            src:
+              /etc/inetd.conf.{{ ansible_date_time.day +
+              ansible_date_time.month + ansible_date_time.year }}
+            dest: /etc/inetd.conf
+            remote_src: true
+          when: inetd_diff.rc == 1
+
+  rescue:
+
+    - name:
+        Return code generation in case
+        restoring sendmail.cf and inetd.conf files failed
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5031
+        rc_message:
+          "Restoring sendmail.cf and inetd.conf files failed."
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Restoring sendmail.cf and inetd.conf files failed.\n\n"
+
+    - name: Unmount NFS volume
+      ansible.builtin.include_tasks: unmount_nfs.yml
+      when:
+        - nfs_path | length > 0
+        - mount_success
+        - unmount_nfs_after_patching
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Restoring sendmail.cf and inetd.conf files failed"
+      when: fail_on_error | bool
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Server reboot recommendation
+  when:
+    - not reboot_required | bool
+    - patching_scenario == 'alt_disk'
+  block:
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          It's strongly recommended to reboot the server immediately
+          as the updates are applied in the alt_disk
+          instead of the {{ root_vg_name }} disk.
+          Hence updates will not take effect until the server is rebooted
+          from the alt_disk.\n\n"
+
+- name: Server reboot
+  when: reboot_required | bool
+  block:
+
+    - name: Reboot the server
+      ansible.builtin.reboot:
+        msg: Reboot initiated by AIX patching playbook
+        connect_timeout: 10
+        reboot_timeout: 600
+      register: reboot_output
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Server rebooted successfully.\n\n"
+
+  rescue:
+
+    - name: Wait for the reboot to complete.
+      ansible.builtin.wait_for_connection:
+        connect_timeout: 120
+        sleep: 30
+        delay: 60
+        timeout: 600
+      when: reboot_output.rebooted
+      failed_when: false
+
+    - name: Get server uptime
+      ansible.builtin.command: uptime
+      when: reboot_output.rebooted
+      register: uptime
+      changed_when: false
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Server rebooted successfully.\n\n"
+      when:
+        - reboot_output.rebooted
+        - uptime.rc == 0
+
+    - name:
+        Return code generation in case server reboot fails
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5032
+        rc_message:
+          "Server reboot has failed.
+          Further investigation is required by the developer."
+      when: not reboot_output.rebooted or uptime.rc != 0
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Server reboot has failed.\n\n"
+      when: not reboot_output.rebooted or uptime.rc != 0
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+      when: not reboot_output.rebooted or uptime.rc != 0
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+      when: not reboot_output.rebooted or uptime.rc != 0
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Server reboot has failed"
+      when: fail_on_error | bool and
+            (not reboot_output.rebooted or uptime.rc != 0)
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+      when: not reboot_output.rebooted or uptime.rc != 0
+
+- name: Execute post patching script
+  when: patching_scenario != 'software_patching'
+  block:
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Post patch OS level - {{ post_patch_oslevel.stdout }}\n\n"
+      when: patching_scenario != 'software_patching'
+
+    - name: Execute post patching script
+      ansible.builtin.script: files/prepost.sh postcompare {{ root_vg_name }}
+
+  rescue:
+
+    - name:
+        Return code generation in case of
+        post patching script execution failure
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5033
+        rc_message:
+          "Post patching script execution has failed.
+          Further investigation is required by the developer."
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Post patch script execution has failed.\n\n"
+
+    - name: Unmount NFS volume
+      ansible.builtin.include_tasks: unmount_nfs.yml
+      when:
+        - nfs_path | length > 0
+        - mount_success
+        - unmount_nfs_after_patching
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Post patching script execution has failed"
+      when: fail_on_error | bool
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false

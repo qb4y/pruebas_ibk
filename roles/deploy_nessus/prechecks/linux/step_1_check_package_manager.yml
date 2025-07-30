@@ -1,0 +1,17 @@
+- name: Verificar si 'yum' está disponible en el sistema
+  ansible.builtin.command: command -v yum
+  register: yum_check
+  ignore_errors: true
+  changed_when: false
+
+- name: Verificar si 'dnf' está disponible en el sistema
+  ansible.builtin.command: command -v dnf
+  register: dnf_check
+  ignore_errors: true
+  changed_when: false
+
+- name: Validar que al menos 'yum' o 'dnf' esté disponible
+  ansible.builtin.assert:
+    that:
+      - yum_check.rc == 0 or dnf_check.rc == 0
+    fail_msg: "No se encontró ni 'yum' ni 'dnf'. Este sistema no tiene un gestor de paquetes compatible."

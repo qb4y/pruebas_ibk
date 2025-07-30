@@ -1,0 +1,37 @@
+---
+# skipping ansible-lint rule 403 because we want to install latest patches
+- name: Set exec_message
+  ansible.builtin.set_fact:
+    exec_message:
+      "{{ exec_message }}
+      Patching started.\n\n
+      Host OS and version details: {{ ansible_distribution }}
+      {{ ansible_distribution_version }}.\n\n
+      patch_type: {{ patch_type }}.\n\n"
+
+- name: Add change number to exec_message
+  ansible.builtin.set_fact:
+    exec_message:
+      "{{ exec_message }}
+      Change number: {{ change_number }}\n\n"
+  when: change_number | length > 0
+
+- name: Run zypper update on host - update & upgrade
+  ansible.builtin.include_tasks: install_rcp_deviations.yml
+  when:
+    - (patch_type == "update_all" or patch_type == "rcp_all")
+    - continue_execution
+
+- name: Run security update on host
+  ansible.builtin.include_tasks: security.yml
+  when:
+    - patch_type == "security_all"
+    - continue_execution
+
+- name: Install single/multiple package(s)
+  ansible.builtin.include_tasks: install_specific_patches.yml
+  when:
+    - patch_type != "update_all"
+    - patch_type != "rcp_all"
+    - patch_type != "security_all"
+    - continue_execution

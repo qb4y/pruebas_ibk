@@ -1,0 +1,79 @@
+---
+## Data Mapping específico para Windows
+## Función: Configuración profesional según documentación VMware
+
+- name: "Mapear networks para Windows (estructura VMware estándar)"
+  ansible.builtin.set_fact:
+    networks: "{{ networks | default([]) + [{
+                  'name': nwitem['vm_port_group'],
+                  'type': 'static',
+                  'ip': nwitem['vm_ip_address'], 
+                  'netmask': nwitem['vm_netmask'],
+                  'gateway': nwitem['vm_gateway'],
+                  'device_type': nwitem['device_type'] | default('vmxnet3'),
+                  'connected': true,
+                  'start_connected': true
+                }]
+              }}"
+  loop: "{{ vm_nics }}"
+  loop_control:
+    loop_var: nwitem
+  tags: [data_mapping_windows, networks]
+
+- name: "Mapear customization Windows (según documentación VMware oficial)"
+  ansible.builtin.set_fact:
+    customization:
+      # CRÍTICO: Computer name único para evitar "Getting Ready" infinito
+      # HOSTNAME: Solo nombre sin dominio (VMware no acepta puntos en computerName)
+      hostname: "{{ vm_hostname | regex_replace('_', '') }}"  # opaastest03
+      
+      # DOMINIO: Configurado por separado para DNS name completo
+      domain: "grupoib.local"  # Resultado DNS: opaastest03.grupoib.local
+      
+      # Configuración de dominio y credenciales
+      joindomain: "{{ joindomain | default('') }}"
+      domainadmin: "{{ domainadmin | default('') }}"
+      domainadminpassword: "{{ domainadminpassword | default('') }}"
+      
+      # Configuración local Windows - USUARIO OPERATOR
+      password: "{{ local_admin_password }}"  # Bugtraq12
+      fullname: "{{ fullname | default('Operator') }}"
+      orgname: "{{ orgname | default('Interbank') }}"
+      
+      # DNS y red
+      dns_servers: "{{ dns_servers }}"
+      
+      # Configuración regional
+      timezone: "{{ timezone | default('45') }}"
+      
+      # Auto logon con usuario operator
+      autologon: true
+      autologoncount: 1
+  no_log: true
+  tags: [data_mapping_windows, customization]
+
+- name: "Mapear hardware para Windows"
+  ansible.builtin.set_fact:
+    hardware:
+      memory_mb: "{{ vm_memory }}"
+      num_cpus: "{{ vm_cpu }}"
+      scsi: "paravirtual"
+      boot_firmware: "bios"
+  tags: [data_mapping_windows, hardware]
+
+- name: "Mostrar configuración crítica para debug"
+  ansible.builtin.debug:
+    msg:
+      - "CONFIGURACIÓN CRÍTICA WINDOWS:"
+      - "Computer Name: {{ customization.hostname }}"
+      - "Dominio: {{ customization.domain }}"
+      - "DNS Name Completo: {{ customization.hostname }}.{{ customization.domain }}"
+      - "Usuario Admin Local: operator"
+      - "Password Admin: Bugtraq12"
+      - "IP Estática: {{ networks[0].ip }}"
+      - "Red: {{ networks[0].name }}"
+      - "Tipo IP: {{ networks[0].type }}"
+      - "Gateway: {{ networks[0].gateway }}"
+      - "DNS: {{ customization.dns_servers | join(', ') }}"
+      - "Auto Logon: {{ customization.autologon }}"
+  tags: [data_mapping_windows, debug] 

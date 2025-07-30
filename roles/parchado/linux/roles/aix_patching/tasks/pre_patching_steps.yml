@@ -1,0 +1,906 @@
+---
+
+- name: Alt disk cleanup
+  when: patching_scenario == 'alt_disk' or
+        (patching_scenario == 'rootvg' and rootvg_backup == 'alt_disk')
+  block:
+
+    - name:
+        Check if altinst_rootvg is already configured  # noqa risky-shell-pipe
+      ansible.builtin.shell: |
+        lspv | egrep "old_{{ root_vg_name }} | altinst_{{
+        root_vg_name }}" | awk '{print $1}'
+      register: altinst_rootvg_disk
+      changed_when: false
+      failed_when: altinst_rootvg_disk.rc > 1
+
+    - name: Identify clone VG name  # noqa risky-shell-pipe
+      ansible.builtin.shell: |
+        lspv | egrep "old_{{ root_vg_name }} | altinst_{{
+        root_vg_name }}" | awk '{print $3}'
+      changed_when: false
+      register: clone_vg
+      when: altinst_rootvg_disk.stdout | length
+
+    - name: Remove existing altinst_rootvg configuration
+      ansible.builtin.command: alt_rootvg_op -X {{ item }}
+      when: altinst_rootvg_disk.stdout | length
+      loop: "{{ clone_vg.stdout_lines | unique }}"
+      changed_when: true
+
+    - name: Update exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Existing altinst_rootvg configuration has been removed.\n\n"
+      when: altinst_rootvg_disk.stdout | length
+
+  rescue:
+
+    - name: Return code generation in case alt disk cleanup fails
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5035
+        rc_message:
+          "Alt disk cleanup has failed.
+          Further investigation is required by the developer."
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Alt disk cleanup has failed.\n\n
+          Aborting the patching process.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Alt disk cleanup has failed"
+      when: fail_on_error | bool
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Fail if no old rootvg found
+  when:
+    - patching_scenario == 'alt_disk' or
+      (patching_scenario == 'rootvg' and rootvg_backup == 'alt_disk')
+    - fail_if_no_old_rootvg
+    - not altinst_rootvg_disk.stdout | length
+  block:
+
+    - name: Return code generation if no old rootvg found
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "account"
+        rc_group: "misconfiguration"
+        rc_number: 6008
+        rc_message:
+          "No old {{ root_vg_name }} found. Make sure there is an old rootvg
+          available or use different rootvg backup method or
+          set fail_if_no_old_rootvg to false.
+          Aborting the patching process."
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          No old {{ root_vg_name }} found.\n\n
+          Aborting the patching process.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "No old {{ root_vg_name }} found"
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Fetch rootvg
+  when:
+    - patching_scenario == 'alt_disk' or
+      (patching_scenario == 'rootvg' and rootvg_backup == 'alt_disk')
+    - continue_execution
+  block:
+
+    - name: Get disk name mapped to rootvg  # noqa risky-shell-pipe
+      ansible.builtin.shell: |
+        lspv | grep ' {{ root_vg_name }} ' | awk '{print $1}'
+      register: rootvg_disk
+      changed_when: false
+
+    - name: Fail if no rootvg found
+      when: not rootvg_disk.stdout | length
+      block:
+
+        - name: Return code generation if no rootvg found
+          ansible.builtin.include_role:
+            name: returncode
+          vars:
+            rc_support: "account"
+            rc_group: "misconfiguration"
+            rc_number: 6009
+            rc_message:
+              "No {{ root_vg_name }} volume group found.
+              Please provide a valid value.
+              Aborting the patching process."
+
+        - name: Set exec_message
+          ansible.builtin.set_fact:
+            exec_message:
+              "{{ exec_message }}
+              No {{ root_vg_name }} volume group found.\n\n
+              Aborting the patching process.\n\n"
+
+        - name: Send communication
+          ansible.builtin.include_tasks: send_notification.yml
+
+        - name: Remove lock file
+          ansible.builtin.file:
+            path:
+              /etc/ansible/facts.d{{
+              '' if lock_file_dir.changed else '/unix_patching.fact' }}
+            state: absent
+
+        - name: End the job for the host {{ inventory_hostname }}
+          ansible.builtin.fail:
+            msg: "No {{ root_vg_name }} volume group found"
+
+        - name: Set continue_execution flag
+          ansible.builtin.set_fact:
+            continue_execution: false
+
+- name: Fetch free disks
+  when:
+    - patching_scenario == 'alt_disk' or
+      (patching_scenario == 'rootvg' and rootvg_backup == 'alt_disk')
+    - continue_execution
+  block:
+
+    - name: Fetch free disks using lspv command
+      when:
+        not ((free_disk | length and rootvg_disk.stdout_lines | length == 1) or
+        (use_old_rootvg and altinst_rootvg_disk.stdout_lines | length
+        == rootvg_disk.stdout_lines | length))
+      block:
+
+        - name: Get free disk name  # noqa risky-shell-pipe
+          ansible.builtin.shell: |
+            lspv | grep -v {{ root_vg_name }} |
+            grep " None " | awk '{print $1}'
+          register: free_disk_name
+          changed_when: false
+          failed_when: free_disk_name.stdout | length == 0
+
+        - name:
+            Fetch list of free disks under the same parent adaptor as rootvg
+          when: free_disk_same_adaptor
+          block:
+
+            - name: Fetch parent adaptor for rootvg disk
+              ansible.builtin.command: |
+                lsdev -l {{ rootvg_disk.stdout }} -F parent
+              register: rootvg_parent_adaptor
+              changed_when: false
+
+            - name: Get free disk parent adaptor
+              ansible.builtin.command: |
+                lsdev -l {{ item }} -F parent
+              register: free_disk_parent_adaptor
+              changed_when: false
+              loop: "{{ free_disk_name.stdout_lines }}"
+
+            - name:
+                Fetch list of free disks under the same parent adaptor as rootvg
+              ansible.builtin.set_fact:
+                free_disk_list_same_parent:
+                  "{{ free_disk_list_same_parent + item.item + ',' }}"
+              when: item.stdout == rootvg_parent_adaptor.stdout
+              loop: "{{ free_disk_parent_adaptor.results }}"
+              vars:
+                free_disk_list_same_parent: ''
+
+            - name: Trim free_disk_list_same_parent
+              ansible.builtin.set_fact:
+                free_disk_list_same_parent:
+                  "{{ free_disk_list_same_parent | regex_replace(',$', '') }}"
+
+            - name: Convert free_disk_list_same_parent to a list
+              ansible.builtin.set_fact:
+                free_disk_list_same_parent:
+                  "{{ free_disk_list_same_parent.split(',') }}"
+
+        - name: Fetch free disk with maximum free space
+          block:
+
+            - name: Get disk free space
+              ansible.builtin.command: bootinfo -s {{ item }}
+              register: free_disk_space_max
+              changed_when: false
+              loop:
+                "{{ free_disk_list_same_parent if free_disk_list_same_parent
+                is defined else free_disk_name.stdout_lines }}"
+
+            - name: Get the list of free space for all the free disks
+              ansible.builtin.set_fact:
+                free_space_list_max:
+                  "{{ free_space_list_max + item.stdout + ',' }}"
+              loop: "{{ free_disk_space_max.results }}"
+              vars:
+                free_space_list_max: ''
+
+            - name: Trim free_space_list_max
+              ansible.builtin.set_fact:
+                free_space_list_max:
+                  "{{ free_space_list_max | regex_replace(',$', '') }}"
+
+            - name: Convert free_space_list_max to a list
+              ansible.builtin.set_fact:
+                free_space_list_max:
+                  "{{ free_space_list_max.split(',') }}"
+
+            - name: Get the list of free space and disks for all the free disks
+              ansible.builtin.set_fact:
+                free_disk_space_list_max:
+                  "{{ free_disk_space_list_max +
+                  item.stdout + ';' + item.item + ',' }}"
+              loop: "{{ free_disk_space_max.results }}"
+              vars:
+                free_disk_space_list_max: ''
+
+            - name: Trim free_disk_space_list_max
+              ansible.builtin.set_fact:
+                free_disk_space_list_max:
+                  "{{ free_disk_space_list_max | regex_replace(',$', '') }}"
+
+            - name: Convert free_disk_space_list_max to a list
+              ansible.builtin.set_fact:
+                free_disk_space_list_max:
+                  "{{ free_disk_space_list_max.split(',') }}"
+
+            - name: Get the list of free space for all the free disks
+              ansible.builtin.set_fact:
+                free_disk_list:
+                  "{{ free_disk_list +
+                  item.1 | regex_replace('^.*?;(.*)$', '\\1') + ',' }}"
+              loop:
+                "{{ free_space_list_max | map('int') | sort | reverse |
+                product(free_disk_space_list_max) | list }}"
+              when:
+                - item.0 | int == item.1 |
+                  regex_replace('^(.*?);.*$', '\\1') | int
+                - free_disk_list | length | int <
+                  rootvg_disk.stdout_lines | length | int
+              vars:
+                free_disk_list: ''
+
+            - name: Trim free_disk_list
+              ansible.builtin.set_fact:
+                free_disk_list:
+                  "{{ free_disk_list | regex_replace(',$', '') }}"
+
+            - name: Convert free_disk_list to a list
+              ansible.builtin.set_fact:
+                free_disk_list:
+                  "{{ free_disk_list.split(',') }}"
+
+    - name: Extract free_disk
+      ansible.builtin.set_fact:
+        free_disk:
+          "{% if use_old_rootvg and altinst_rootvg_disk.stdout_lines | length
+          == rootvg_disk.stdout_lines | length
+          %}{{ altinst_rootvg_disk.stdout_lines }}{% elif free_disk |
+          length and rootvg_disk.stdout_lines | length ==
+          1 %}{{ free_disk }}{% else
+          %}{{ free_disk_list }}{% endif %}"
+
+    - name: Trim free_disk
+      ansible.builtin.set_fact:
+        free_disk: "{{ free_disk | join(' ') }}"
+
+    - name: No free disk found
+      when: not free_disk | length
+      ansible.builtin.fail:
+        msg: "No free disk found to clone the {{ root_vg_name }}"
+
+  rescue:
+
+    - name: Update exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          No free disk found to clone the {{ root_vg_name }}.\n\n"
+
+    - name: Return code generation in case no free disk is found
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "account"
+        rc_group: "misconfiguration"
+        rc_number: 6005
+        rc_message:
+          "No free disk found to clone the {{ root_vg_name }}."
+        documentation: "{{ readme_url }}"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "No free disk found to clone the {{ root_vg_name }}"
+      when: fail_on_error | bool
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Available disk space check
+  when:
+    - patching_scenario == 'alt_disk' or
+      (patching_scenario == 'rootvg' and rootvg_backup == 'alt_disk')
+    - continue_execution
+  block:
+
+    - name: Get rootvg disk free space
+      ansible.builtin.command: bootinfo -s {{ item }}
+      register: rootvg_disk_space
+      changed_when: false
+      loop: "{{ rootvg_disk.stdout_lines }}"
+
+    - name: Get the list of free space for all the rootvg disks
+      ansible.builtin.set_fact:
+        rootvg_disk_space_list:
+          "{{ rootvg_disk_space_list + item.stdout + ',' }}"
+      loop: "{{ rootvg_disk_space.results }}"
+      vars:
+        rootvg_disk_space_list: ''
+
+    - name: Trim rootvg_disk_space_list
+      ansible.builtin.set_fact:
+        rootvg_disk_space_list:
+          "{{ rootvg_disk_space_list | regex_replace(',$', '') }}"
+
+    - name: Convert rootvg_disk_space_list to a list
+      ansible.builtin.set_fact:
+        rootvg_disk_space_list:
+          "{{ rootvg_disk_space_list.split(',') }}"
+
+    - name: Get free disk free space
+      ansible.builtin.command: bootinfo -s {{ item }}
+      register: free_disk_space
+      changed_when: false
+      loop: "{{ free_disk.split() }}"
+
+    - name: Get the list of free space for all the free disks
+      ansible.builtin.set_fact:
+        free_disk_space_list:
+          "{{ free_disk_space_list + item.stdout + ',' }}"
+      loop: "{{ free_disk_space.results }}"
+      vars:
+        free_disk_space_list: ''
+
+    - name: Trim free_disk_space_list
+      ansible.builtin.set_fact:
+        free_disk_space_list:
+          "{{ free_disk_space_list | regex_replace(',$', '') }}"
+
+    - name: Convert free_disk_space_list to a list
+      ansible.builtin.set_fact:
+        free_disk_space_list:
+          "{{ free_disk_space_list.split(',') }}"
+
+    - name: Disk space validation
+      ansible.builtin.set_fact:
+        disk_validation: false
+      when:
+        free_disk_space_list | min | int < rootvg_disk_space_list | max | int
+
+    - name: Disk space validation successful
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Free space on {{ free_disk }} is more than or equal to
+          {{ rootvg_disk.stdout }}.\n\n"
+      when: disk_validation
+
+    - name: Disk space validation failed
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Free space on {{ free_disk }} is less than
+          {{ rootvg_disk.stdout }}.\n\n
+          Aborting the patching process.\n\n"
+      when: not disk_validation
+
+  rescue:
+
+    - name: Return code generation in case disk space validation command failure
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5021
+        rc_message:
+          "One of the commands to validate disk space has failed.
+          Further investigation is required by the developer."
+
+    - name: Set exec_message and disk validation flag
+      ansible.builtin.set_fact:
+        disk_validation: false
+        exec_message:
+          "{{ exec_message }}
+          One of the commands to validate disk space has failed.\n\n
+          Aborting the patching process.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Disk space validation failed"
+      when: fail_on_error | bool
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Filesystem space validation
+  when:
+    - disk_validation
+    - continue_execution
+  block:
+
+    - name: Get available space in /var  # noqa risky-shell-pipe
+      ansible.builtin.shell: |
+        df -gt /var | tail -1 | awk '{print $2}'
+      register: var_free_space
+      changed_when: false
+
+    - name: Add space if required
+      ansible.builtin.command: chfs -a size=+1G /var
+      register: add_space_var
+      when: var_free_space.stdout | int < 1
+      changed_when: true
+
+    - name: Get available space in /tmp  # noqa risky-shell-pipe
+      ansible.builtin.shell: |
+        df -gt /tmp | tail -1 | awk '{print $2}'
+      register: tmp_free_space
+      changed_when: false
+
+    - name: Add space if required
+      ansible.builtin.command: chfs -a size=+1G /tmp
+      register: add_space_tmp
+      when: tmp_free_space.stdout | int < 1
+      changed_when: true
+
+    - name: Get available space in /usr  # noqa risky-shell-pipe
+      ansible.builtin.shell: |
+        df -gt /usr | tail -1 | awk '{print $2}'
+      register: usr_free_space
+      changed_when: false
+
+    - name: Add space if required
+      ansible.builtin.command: chfs -a size=+2G /usr
+      register: add_space_usr
+      when: usr_free_space.stdout | int < 2
+      changed_when: true
+
+    - name: Get available space in root filesystem  # noqa risky-shell-pipe
+      ansible.builtin.shell: |
+        df -gt / | tail -1 | awk '{print $2}'
+      register: root_free_space
+      changed_when: false
+
+    - name: Add space if required
+      ansible.builtin.command: chfs -a size=+512M /
+      register: add_space_root
+      when: root_free_space.stdout | int < 0.5
+      changed_when: true
+
+    - name: Reset fs_space_validation flag
+      ansible.builtin.set_fact:
+        fs_space_validation: false
+
+    - name: Filesystem space validation
+      ansible.builtin.set_fact:
+        fs_space_validation: true
+      when:
+        - var_free_space.stdout | int >= 1 or add_space_var.rc == 0
+        - tmp_free_space.stdout | int >= 1 or add_space_tmp.rc == 0
+        - usr_free_space.stdout | int >= 2 or add_space_usr.rc == 0
+        - root_free_space.stdout | int >= 0.5 or add_space_root.rc == 0
+
+    - name: Filesystem space validation successful
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Filesystem space validation is successful on below filesystems:\n\n
+          /var, /tmp, /usr, /\n\n"
+      when: fs_space_validation
+
+    - name: Filesystem space validation failed
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Filesystem space validation had failed
+          for one of the below filesystems
+          and unable to add more space to these filesystems:\n\n
+          /var, /tmp, /usr, /\n\n
+          Aborting the patching process.\n\n"
+      when: not fs_space_validation
+
+  rescue:
+
+    - name:
+        Return code generation in case of
+        filesystem space validation command failure
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5022
+        rc_message:
+          "One of the commands to validate filesystem space has failed.
+          Further investigation is required by the developer."
+
+    - name: Set exec_message and fs space validation flag
+      ansible.builtin.set_fact:
+        fs_space_validation: false
+        exec_message:
+          "{{ exec_message }}
+          One of the commands to validate filesystem space has failed.\n\n
+          Aborting the patching process.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Filesystem space validation failed"
+      when: fail_on_error | bool
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Backup sendmail.cf and inetd.conf files
+  when:
+    - disk_validation
+    - fs_space_validation
+    - continue_execution
+  block:
+
+    - name: Check if sendmail.cf file exists
+      ansible.builtin.stat:
+        path: /etc/mail/sendmail.cf
+      register: sendmail_conf
+
+    - name: Backup sendmail.cf file  # noqa risky-file-permissions
+      ansible.builtin.copy:
+        src: /etc/mail/sendmail.cf
+        dest:
+          /etc/mail/sendmail.cf.{{ ansible_date_time.day +
+          ansible_date_time.month + ansible_date_time.year }}
+        remote_src: true
+      when: sendmail_conf.stat.exists
+
+    - name: Check if inetd.conf file exists
+      ansible.builtin.stat:
+        path: /etc/inetd.conf
+      register: inetd_conf
+
+    - name: Backup inetd.conf file  # noqa risky-file-permissions
+      ansible.builtin.copy:
+        src: /etc/inetd.conf
+        dest:
+          /etc/inetd.conf.{{ ansible_date_time.day +
+          ansible_date_time.month + ansible_date_time.year }}
+        remote_src: true
+      when: inetd_conf.stat.exists
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          exec_message: >-
+            {{ exec_message }}
+            {% if sendmail_conf.stat.exists and inetd_conf.stat.exists %}
+            sendmail.cf and inetd.conf files have been backed up successfully.
+            {% elif sendmail_conf.stat.exists %}
+            sendmail.cf file has been backed up successfully.
+            {% elif inetd_conf.stat.exists %}
+            inetd.conf file has been backed up successfully.
+            {% endif %}
+
+  rescue:
+
+    - name:
+        Return code generation in case of
+        issues while backing up sendmail.cf and inetd.conf files
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5027
+        rc_message:
+          "Backing up of sendmail.cf and inetd.conf files has failed"
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Backing up of sendmail.cf and inetd.conf files has failed.\n\n
+          Aborting the patching process.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Backup of sendmail.cf and inetd.conf files has failed"
+      when: fail_on_error | bool
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Check installed filesets consistency
+  when:
+    - patching_scenario == 'rootvg'
+    - disk_validation
+    - fs_space_validation
+    - continue_execution
+  block:
+
+    - name:
+        Checking installed filesets consistency -
+        instfix  # noqa risky-shell-pipe
+      ansible.builtin.shell: |
+        instfix -i | grep ML
+      register: instfix_out
+      changed_when: false
+
+    - name: Checking installed filesets consistency - lppchk
+      ansible.builtin.command: lppchk -v
+      register: lppchk_out
+      failed_when: false
+      changed_when: false
+
+    - name: Set filesets_consistency_flag
+      ansible.builtin.set_fact:
+        filesets_consistency_flag: false
+      when:
+        lppchk_out.stdout | length or
+        instfix_out.stdout_lines is not regex('^.*All filesets.*?were found.*$')
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Installed filesets consistency check is successful.\n\n"
+      when: filesets_consistency_flag
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Installed filesets consistency check has failed.\n\n
+          Aborting the patching process.\n\n"
+      when: not filesets_consistency_flag
+
+    - name: Commit filesets in the applied state
+      ansible.builtin.command: installp -c all
+      when: filesets_consistency_flag
+      changed_when: true
+
+  rescue:
+
+    - name: Return code generation in case of
+            installed filesets consistency check failure
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5028
+        rc_message:
+          "One of the commands to validate
+          installed filesets consistency has failed.
+          Further investigation is required by the developer."
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        filesets_consistency_flag: false
+        exec_message:
+          "{{ exec_message }}
+          One of the commands to validate
+          installed filesets consistency has failed.\n\n
+          Aborting the patching process.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Installed filesets consistency check failed"
+      when: fail_on_error | bool
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Execute pre patching scripts
+  when:
+    - disk_validation
+    - fs_space_validation
+    - continue_execution
+    - filesets_consistency_flag
+  block:
+
+    - name: Get oslevel
+      ansible.builtin.command: oslevel -s
+      changed_when: false
+      register: pre_patch_oslevel
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Pre patch OS level - {{ pre_patch_oslevel.stdout }}\n\n"
+
+    - name: Execute pre patching script
+      ansible.builtin.script: files/prepost.sh precheck {{ root_vg_name }}
+
+    - name: Run the shutdown script
+      ansible.builtin.command: /etc/rc.shutdown
+      when: run_shutdown_script
+      changed_when: true
+
+    - name: Update exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Shutdown script to stop all applications/DBs
+          is completed successfully.\n\n"
+      when: run_shutdown_script
+
+  rescue:
+
+    - name:
+        Return code generation in case of
+        pre patching script execution failure
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5029
+        rc_message:
+          "Pre patching script execution has failed.
+          Further investigation is required by the developer."
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Pre patching script execution has failed.\n\n
+          Aborting the patching process.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Pre patching script execution has failed"
+      when: fail_on_error | bool
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Pre check validation failure
+  when:
+    not disk_validation or
+    not fs_space_validation or
+    not filesets_consistency_flag
+  block:
+
+    - name: Return code generation in case of pre check validation failure
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "account"
+        rc_group: "misconfiguration"
+        rc_number: 6002
+        rc_message:
+          "Hostname: {{ inventory_hostname }}\n\n
+          {{ exec_message }}"
+        documentation: "{{ readme_url }}"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Pre check validation failed"
+      when: fail_on_error | bool
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false

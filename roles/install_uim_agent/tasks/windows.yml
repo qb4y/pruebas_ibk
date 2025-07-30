@@ -1,0 +1,57 @@
+---
+- name: Construir contenido del nms-robot-vars.cfg (Windows)
+  ansible.builtin.set_fact:
+    uim_cfg_content: |
+      DOMAIN={{ DOMAIN }}
+      HUB={{ HUB }}
+      HUBIP={{ HUBIP }}
+      HUBROBOTNAME={{ HUBROBOTNAME }}
+      HUBPORT={{ HUBPORT }}
+      ROBOTIP={{ ROBOTIP }}
+      ROBOTNAME={{ ROBOTNAME }}
+      FIRST_PROBE_PORT={{ FIRST_PROBE_PORT }}
+
+- name: Crear carpeta temporal para el instalador
+  ansible.windows.win_file:
+    path: C:\Temp\UIM
+    state: directory
+
+- name: Escribir nms-robot-vars.cfg en Windows
+  ansible.windows.win_copy:
+    dest: C:\Temp\UIM\nms-robot-vars.cfg
+    content: "{{ uim_cfg_content }}"
+
+- name: Descargar instalador desde MinIO
+  ansible.windows.win_get_url:
+    url: "{{ uim_installer_url_final }}"
+    dest: C:\Temp\UIM\robot_installer.exe
+
+- name: Ejecutar instalador en modo silencioso (PowerShell)
+  ansible.windows.win_shell: >
+    Start-Process -FilePath "C:\Temp\UIM\robot_installer.exe"
+    -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART',
+    '/LOG="C:\Temp\UIM\install.log"',
+    '/DIR="C:\Program Files (x86)\Nimsoft"'
+    -Wait
+  args:
+    executable: powershell.exe
+  register: uim_install_result
+  ignore_errors: true
+
+- name: Mostrar contenido del log si falla
+  ansible.windows.win_shell: Get-Content -Path "C:\Temp\UIM\install.log"
+  when: uim_install_result.rc != 0
+
+- name: ✅ Validar si se instaló correctamente
+  ansible.windows.win_stat:
+    path: 'C:\Program\bin\nimbus.exe'
+  register: robot_binary
+
+- name: Mostrar resultado de instalación
+  ansible.builtin.debug:
+    msg: >-
+      {% if robot_binary.stat.exists %}
+        ✅ Nimsoft Robot instalado correctamente.
+      {% else %}
+        ❌ Instalación fallida. Verifica el log en C:\Temp\UIM\install.log
+      {% endif %}

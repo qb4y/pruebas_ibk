@@ -1,0 +1,33 @@
+---
+# Windows Patch Management Role Handlers
+# Following Kyndryl Ansible Role Development Standards
+
+- name: Restart Windows Update service
+  ansible.windows.win_service:
+    name: wuauserv
+    state: restarted
+
+- name: Restart Windows Update Medic service
+  ansible.windows.win_service:
+    name: DoSvc
+    state: restarted
+
+- name: Restart Background Intelligent Transfer service
+  ansible.windows.win_service:
+    name: BITS
+    state: restarted
+
+- name: Restart Cryptographic Services
+  ansible.windows.win_service:
+    name: CryptSvc
+    state: restarted
+
+- name: Restart Windows Installer
+  ansible.windows.win_service:
+    name: MSIServer
+    state: restarted
+
+- name: Restart Windows Modules Installer
+  ansible.windows.win_service:
+    name: TrustedInstaller
+    state: restarted 

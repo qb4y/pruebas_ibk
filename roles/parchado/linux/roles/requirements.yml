@@ -1,0 +1,20 @@
+---
+# generic role for uploads to SFS
+- name: sfs_upload
+  scm: 'git'
+  src: https://github.kyndryl.net/Continuous-Engineering/ansible_role_sfs_upload.git
+  version: 4.2/main
+
+- name: returncode
+  src:
+    "https://github.kyndryl.net/Continuous-Engineering/ansible_role_returncode.git"
+  scm: 'git'
+  version: 1.4/main
+
+- name: ansible_role_input_control_validate
+  src: git+https://github.kyndryl.net/Continuous-Engineering/ansible_role_input_control_validate.git
+  version: 3.3/main
+
+- name: scan_for_patches
+  src: git+https://github.kyndryl.net/Innovate/project_vpm_unix.git
+  version: 2.0/main

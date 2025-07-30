@@ -1,0 +1,42 @@
+---
+galaxy_info:
+  role_name: crowdstrike
+  author: joska
+  description: >
+    Rol de despliegue de CrowdStrike Falcon Sensor. 
+    Automatiza instalación, configuración y validación del agente EDR 
+    en Windows Server y Linux RedHat family con integración MinIO y Vault.
+  company: Kyndryl
+  license: Kyndryl Intellectual Property 
+  min_ansible_version: "2.12"
+  platforms:
+    - name: EL
+      versions:
+        - 7
+        - 8
+        - 9
+    - name: Windows
+      versions:
+        - 2012
+        - 2016
+        - 2019
+        - 2022
+  galaxy_tags:
+    - crowdstrike
+    - falcon
+    - edr
+    - security
+    - endpoint
+    - protection
+    - agent
+    - compliance
+    - hardening
+    - windows
+    - linux
+    - redhat
+    - centos
+    - automation
+
+dependencies:
+  - name: vault_core
+  - name: provider_minio

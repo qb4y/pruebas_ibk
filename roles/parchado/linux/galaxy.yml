@@ -1,0 +1,33 @@
+---
+authors:
+- Shushank Goswami
+- Radha Krishna M G
+dependencies: {}
+description: This collection contains playbooks for patching-related
+  activities on Unix systems.
+issues: >-
+  https://github.kyndryl.net/Continuous-Engineering/Ansible-Dynamic-Automation/issues
+license_file:
+  https://github.kyndryl.net/Continuous-Engineering/CE-Documentation/blob/master/files/LICENSE.md
+name: patching_unix
+version: 2.28.0
+namespace: continuous_engineering
+readme: >-
+  README.md
+repository: >-
+  https://github.kyndryl.net/Continuous-Engineering/ansible_collection_patching_unix
+tags:
+- patching
+- unix
+- linux
+- rhel
+- centos
+- suse
+- ubuntu
+- oraclelinux
+- rockylinux
+- aix
+- cacm
+- productionready
+- clientdeployable
+- securitypatchmanagement

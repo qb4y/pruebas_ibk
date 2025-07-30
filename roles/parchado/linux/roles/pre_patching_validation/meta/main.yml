@@ -1,0 +1,17 @@
+---
+dependencies: []
+galaxy_info:
+  author: Shushank Goswami
+  role_name: pre_patching_validation
+  description: Validates whether automated patching can be performed
+    or not on Linux endpoints.
+  company: Kyndryl
+  license: Kyndryl Intellectual Property
+  min_ansible_version: '2.9.10'
+  platforms:
+    - name: EL
+      versions:
+        - all
+  galaxy_tags:
+    - patching
+    - linux

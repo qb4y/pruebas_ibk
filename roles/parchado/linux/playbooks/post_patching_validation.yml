@@ -1,0 +1,98 @@
+---
+
+- name: Run ICV role
+  hosts: all
+  gather_facts: false
+  vars:
+    send_email: false
+    recipients: []
+    smtp_host_ip: ''
+    smtp_port: 25
+    teams_notification: false
+    channel_webhook_url: ''
+    sender: "(Ansible Robot) ansible-robot@kyndryl.com"
+  tasks:
+
+    - name: Set link to documentation and asset
+      ansible.builtin.include_role:
+        name: returncode
+        tasks_from: set_job_properties
+      vars:
+        asset_name: "Post Patching Validation"
+        documentation:
+          default:
+            "https://github.kyndryl.net/Continuous-Engineering/ansible_collection_patching_unix"
+
+    - name: Run ICV role
+      ansible.builtin.include_role:
+        name: ansible_role_input_control_validate
+      vars:
+        icv_variable_descriptor: "post_patching_validation.json"
+        icv_playbook_dir_path_level: 1
+
+    - name: Input validation failed
+      when: returncode != "0"
+      block:
+
+        - name: Include communication role - input validation failure
+          when:
+            teams_notification or send_email
+          ansible.builtin.include_role:
+            name: communication
+            tasks_from: validation_failure_communication.yml
+
+        - name: End the job
+          ansible.builtin.fail:
+            msg: "Input validation failed"
+
+- name: Linux post patching
+  hosts: all
+  gather_facts: false
+  become: true
+  vars:
+    send_email: false
+    teams_notification: false
+    recipients: []
+    channel_webhook_url: ''
+    continue_execution: true
+  tasks:
+
+    - name: Set link to documentation and asset
+      ansible.builtin.include_role:
+        name: returncode
+        tasks_from: set_job_properties
+      vars:
+        asset_name: "Post Patching Validation"
+        documentation:
+          default:
+            "https://github.kyndryl.net/Continuous-Engineering/ansible_collection_patching_unix"
+
+    - name: Initialize exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "Hostname: {{ inventory_hostname }}\n\n"
+      when:
+        - send_email
+        - recipients | length
+
+    - name: Include post_patching_validation role
+      ansible.builtin.include_role:
+        name: post_patching_validation
+      vars:
+        post_patching_standalone_mode: true
+        patching_pre_req_validation: true
+        patch_status: 'success'
+        attach_config_data: false
+
+    - name: Include communication role
+      ansible.builtin.include_role:
+        name: communication
+        tasks_from: linux_post_patching_communication.yml
+
+    - name: Remove lock file
+      when: gathered_facts.unreachable is not defined
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent

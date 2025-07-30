@@ -1,0 +1,214 @@
+---
+
+- name: Bootlist addition
+  block:
+
+    - name: Get oslevel
+      ansible.builtin.command: oslevel -s
+      changed_when: false
+      register: pre_restore_oslevel
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Pre restore OS level -> {{ pre_restore_oslevel.stdout }}.\n\n"
+
+    - name: Fetch altinst_rootvg/old_rootvg disk name  # noqa risky-shell-pipe
+      ansible.builtin.shell: |
+        lspv | egrep "old_{{ root_vg_name }} |
+        altinst_{{ root_vg_name }}" | awk '{print $1}'
+      register: altinst_rootvg_disk
+      changed_when: false
+      failed_when: altinst_rootvg_disk.rc > 1
+
+    - name: Set bootlist to add altinst_rootvg/old_rootvg disk
+      ansible.builtin.shell: >
+        bootlist -m normal {{ altinst_rootvg_disk.stdout }}
+      when: altinst_rootvg_disk.stdout | length
+      changed_when: true
+
+  rescue:
+
+    - name:
+        Return code generation in case of
+        bootlist addition command failure
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5026
+        rc_message:
+          "bootlist addition command has failed.
+          Further investigation is required by the developer."
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          bootlist addition command has failed.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "bootlist addition command has failed"
+      when: fail_on_error | bool
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Fail if no old rootvg found
+  when:
+    - not altinst_rootvg_disk.stdout | length
+  block:
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          No old {{ root_vg_name }} found.\n\n
+          Aborting the restoring process.\n\n"
+
+    - name: Return code generation in case no old rootvg is found
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "account"
+        rc_group: "misconfiguration"
+        rc_number: 6006
+        rc_message:
+          "No old {{ root_vg_name }} volume group found
+          to restore the OS to previous maintenance level"
+        documentation: "{{ readme_url }}"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "No old rootvg found"
+      when: fail_on_error | bool
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Server reboot
+  when: continue_execution
+  block:
+
+    - name: Reboot the server
+      ansible.builtin.reboot:
+        msg: Reboot initiated by AIX patching playbook
+        connect_timeout: 10
+        reboot_timeout: 600
+      register: reboot_output
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Server rebooted successfully.\n\n"
+
+  rescue:
+
+    - name: Wait for the reboot to complete.
+      ansible.builtin.wait_for_connection:
+        connect_timeout: 120
+        sleep: 30
+        delay: 60
+        timeout: 600
+      when: reboot_output.rebooted
+      failed_when: false
+
+    - name: Get server uptime
+      ansible.builtin.command: uptime
+      when: reboot_output.rebooted
+      register: uptime
+      changed_when: false
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Server rebooted successfully.\n\n"
+      when:
+        - reboot_output.rebooted
+        - uptime.rc == 0
+
+    - name:
+        Return code generation in case server reboot fails
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5032
+        rc_message:
+          "Server reboot has failed.
+          Further investigation is required by the developer."
+      when: not reboot_output.rebooted or uptime.rc != 0
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Server reboot has failed.\n\n"
+      when: not reboot_output.rebooted or uptime.rc != 0
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+      when: not reboot_output.rebooted or uptime.rc != 0
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+      when: not reboot_output.rebooted or uptime.rc != 0
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Server reboot has failed"
+      when: fail_on_error | bool and
+            (not reboot_output.rebooted or uptime.rc != 0)
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+      when: not reboot_output.rebooted or uptime.rc != 0
+
+- name: Get oslevel
+  when: continue_execution
+  block:
+
+    - name: Get oslevel
+      ansible.builtin.command: oslevel -s
+      changed_when: false
+      register: post_restore_oslevel
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          OS has been restored to the previous maintenance level.\n\n
+          Post restore OS level -> {{ post_restore_oslevel.stdout }}\n\n"

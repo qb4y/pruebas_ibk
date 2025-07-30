@@ -1,0 +1,3 @@
+- name: Mostrar estado HTTP de la URL
+  ansible.builtin.debug:
+    msg: "🔍 Estado HTTP de la URL: {{ nessus_installer_url }}"

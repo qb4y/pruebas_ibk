@@ -1,0 +1,13 @@
+- name: Validar respuesta de Vault para '{{ vault_key }}'
+  assert:
+    that:
+      - vault_response is defined
+      - vault_response.json is defined
+      - vault_response.json.data is defined
+      - vault_response.json.data.data is defined
+      - vault_response.json.data.data | length > 0
+    fail_msg: "❌ La respuesta de Vault para '{{ vault_key }}' no contiene datos válidos"
+    success_msg: "✅ Se recibieron datos válidos desde Vault para '{{ vault_key }}'"
+  delegate_to: localhost
+  run_once: true
+  no_log: true

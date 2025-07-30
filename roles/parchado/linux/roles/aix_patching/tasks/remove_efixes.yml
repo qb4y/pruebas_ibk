@@ -1,0 +1,56 @@
+---
+- name: Remove efixes
+  block:
+
+    - name: Uninstall efixes
+      ansible.builtin.command: /usr/sbin/emgr -r -L {{ item }}
+      loop: "{{ remove_efix_list.split(',') }}"
+      changed_when: true
+
+    - name: Efixes uninstalled successfully
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Below efixes have been uninstalled successfully:\n\n
+          {{ remove_efix_list }}\n\n"
+
+  rescue:
+
+    - name:
+        Return code generation in case of
+        uninstalling efixes fail
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: developer
+        rc_group: component_playbook
+        rc_number: 5024
+        rc_message:
+          "Uninstalling efixes step has failed.
+          Further investigation is required by the developer."
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Uninstalling efixes step has failed.\n\n
+          Aborting the patching process.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Uninstalling efixes failed"
+      when: fail_on_error | bool
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false

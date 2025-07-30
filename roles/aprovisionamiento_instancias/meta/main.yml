@@ -1,0 +1,25 @@
+---
+galaxy_info:
+  author: Wilber Ticllasuca
+  description: Rol para aprovisionamiento de instancias VMware
+  company: Kyndryl
+  license: MIT
+  min_ansible_version: "2.9"
+  platforms:
+    - name: EL
+      versions:
+        - "all"
+    - name: EL
+      versions:
+        - "all"
+  galaxy_tags:
+    - vmware
+    - vcenter
+    - virtualization
+    - provisioning
+
+dependencies: []
+
+collections:
+  - community.vmware
+  - vmware.vmware

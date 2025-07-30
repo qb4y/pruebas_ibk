@@ -1,0 +1,7 @@
+---
+- name: Testing
+  hosts: "affected_host"
+  gather_facts: false
+  become: true
+  roles:
+    - pre_patching_validation

@@ -1,0 +1,90 @@
+- name: 🔐 Obtener todos los secretos desde Vault
+  ansible.builtin.import_role:
+    name: vault_core
+  delegate_to: localhost
+  run_once: true
+  tags: ["vault"]
+
+- name: 🪪 Mostrar secretos UIM traídos desde Vault
+  ansible.builtin.debug:
+    var: vault_all_secrets.uim
+  run_once: true
+  delegate_to: localhost
+  tags: ["vault"]
+
+- name: 🔁 Cargar variables de UIM a todos los hosts
+  ansible.builtin.set_fact:
+    uim: "{{ vault_all_secrets.uim }}"
+
+- name: 🔁 Propagar variables de UIM a todos los hosts
+  ansible.builtin.set_fact:
+    DOMAIN: "{{ uim.uim_domain }}"
+    FIRST_PROBE_PORT: "{{ uim.uim_first_probe_port }}"
+    HUB: "{{ uim.uim_hub }}"
+    HUBIP: "{{ uim.uim_hubip }}"
+    HUBPORT: "{{ uim.uim_hubport }}"
+    HUBROBOTNAME: "{{ uim.uim_hubrobotname }}"
+    ROBOTIP: "{{ uim.uim_robotip }}"
+    ROBOTNAME: "{{ uim.uim_robotname }}"
+  delegate_to: localhost
+  run_once: true
+  tags: ["vault"]
+
+- name: Configurar variables para provider_minio
+  ansible.builtin.set_fact:
+    provider_minio_product: "uim"
+
+- name: 📦 Obtener URLs de descarga desde MinIO
+  ansible.builtin.import_role:
+    name: provider_minio
+  tags: ["minio"]
+
+- name: 🔁 Propagar credenciales MinIO para descargas
+  ansible.builtin.set_fact:
+    minio_user: "{{ minio_user }}"
+    minio_password: "{{ minio_password }}"
+    installer_path: "{{ installer_path }}"
+  tags: ["minio"]
+
+- name: ✅ Validar que las credenciales MinIO están definidas
+  ansible.builtin.assert:
+    that:
+      - minio_user is defined
+      - minio_password is defined
+      - installer_path is defined
+    fail_msg: "❌ Las credenciales de MinIO no están definidas correctamente desde Vault."
+  tags: ["minio"]
+
+- name: 🔎 Mostrar URL generada del instalador UIM
+  ansible.builtin.debug:
+    var: uim_installer_url
+  tags: [minio]
+
+- name: ✅ Validar URLs de descarga
+  ansible.builtin.assert:
+    that:
+      - uim_installer_url is defined
+      - uim_cert_urls is defined
+    fail_msg: |
+      ❌ No se pudieron generar las URLs de descarga desde MinIO.
+      Verifica:
+      1. Conectividad con MinIO
+      2. Archivos existen en bucket: {{ minio_bucket }}
+      3. MinIO Client (mc) está disponible en el execution environment
+  tags: [minio]
+
+- name: Ejecutar prechecks para Linux
+  ansible.builtin.import_tasks: ../prechecks/linux.yml
+  when: target_platform == 'linux'
+
+- name: Ejecutar tareas de instalación en Linux
+  ansible.builtin.include_tasks: linux.yml
+  when: target_platform == 'linux'
+
+- name: Ejecutar prechecks para Windows
+  ansible.builtin.import_tasks: ../prechecks/windows.yml
+  when: target_platform == 'windows'
+
+- name: Ejecutar tareas de instalación en Windows
+  ansible.builtin.include_tasks: windows.yml
+  when: target_platform == 'windows'

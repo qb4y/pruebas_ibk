@@ -1,0 +1,108 @@
+---
+
+- name: Custom repo
+  block:
+
+    - name: Check if rhsm.conf.repo exists
+      ansible.builtin.stat:
+        path: "/etc/rhsm/rhsm.conf"
+      register: rhsm_conf
+
+    - name: Disable manage_repos in rhsm.conf file
+      ansible.builtin.replace:
+        path: /etc/rhsm/rhsm.conf
+        regexp: 'manage_repos = 1'
+        replace: 'manage_repos = 0'
+      when: rhsm_conf.stat.exists
+
+    - name: Check if subscription-manger.conf.repo exists
+      ansible.builtin.stat:
+        path: "/etc/yum/pluginconf.d/subscription-manager.conf"
+      register: subscription_manager_conf
+
+    - name: Disable the subscription-manager.conf file
+      ansible.builtin.replace:
+        path: /etc/yum/pluginconf.d/subscription-manager.conf
+        regexp: 'enabled=1'
+        replace: 'enabled=0'
+      when: subscription_manager_conf.stat.exists
+
+    - name: Check if redhat.repo exists
+      ansible.builtin.stat:
+        path: "/etc/yum.repos.d/redhat.repo"
+      register: redhat_repo
+
+    - name: Disable the redhat.repo in /etc/yum.repos.d/redhat.repo file
+      ansible.builtin.replace:
+        path: /etc/yum.repos.d/redhat.repo
+        regexp: 'enabled = 1'
+        replace: 'enabled = 0'
+      when: redhat_repo.stat.exists
+
+    - name: Check if duosecurity.repo exists
+      ansible.builtin.stat:
+        path: "/etc/yum.repos.d/duosecurity.repo"
+      register: duo_repo
+
+    - name:
+        Disable the duosecurity.repo in /etc/yum.repos.d/duosecurity.repo file
+      ansible.builtin.replace:
+        path: /etc/yum.repos.d/duosecurity.repo
+        regexp: 'enabled=1'
+        replace: 'enabled=0'
+      when: duo_repo.stat.exists
+
+    - name: Check if nexus.repo exists
+      ansible.builtin.stat:
+        path: "/etc/yum.repos.d/nexus.repo"
+      register: nexus_repo
+
+    - name: Disable the nexus.repo in /etc/yum.repos.d/nexus.repo file
+      ansible.builtin.replace:
+        path: /etc/yum.repos.d/nexus.repo
+        regexp: 'enabled = 1'
+        replace: 'enabled = 0'
+      when: nexus_repo.stat.exists
+
+    - name: Check if yum.conf exists
+      ansible.builtin.stat:
+        path: "/etc/yum.conf"
+      register: yum_conf
+
+    - name: Comment the existed baseurl in /etc/yum.conf file
+      ansible.builtin.replace:
+        path: /etc/yum.conf
+        regexp: 'baseurl'
+        replace: '#baseurl'
+      when: yum_conf.stat.exists
+
+    - name: Update the baseurl in /etc/yum.conf for rhel 6
+      ansible.builtin.lineinfile:
+        path: /etc/yum.conf
+        state: present
+        line: 'baseurl={{ rhel6_baseurl }}'
+      when:
+        - ansible_os_family == "RedHat"
+        - ansible_distribution_major_version == "6"
+
+    - name: Update the baseurl in /etc/yum.conf for rhel 7
+      ansible.builtin.lineinfile:
+        path: /etc/yum.conf
+        state: present
+        line: 'baseurl={{ rhel7_baseurl }}'
+      when:
+        - ansible_os_family == "RedHat"
+        - ansible_distribution_major_version == "7"
+
+    - name: Update the baseurl in /etc/yum.conf for rhel8
+      ansible.builtin.lineinfile:
+        path: /etc/yum.conf
+        state: present
+        line: 'baseurl={{ rhel8_baseurl }}'
+      when:
+        - ansible_os_family == "RedHat"
+        - ansible_distribution_major_version == "8"
+
+    - name: Clean the cache of all pervious repos
+      ansible.builtin.command: yum clean all
+      changed_when: true

@@ -1,0 +1,96 @@
+---
+# Rol Principal de Parchado - Variables por Defecto
+# Soporta Windows y Linux con configuraciones automáticas
+
+# ================== CONFIGURACIÓN GENERAL ==================
+# Detección automática del SO si no se especifica
+# type_os: "auto"  # Se detecta automáticamente: 'windows' o 'linux'
+
+# ================== VARIABLES WINDOWS ==================
+# Variables OBLIGATORIAS para Windows (deben ser proporcionadas)
+# patching_mode: "wsus"                    # wsus | sccm
+# target_environment: "PROD"               # PROD | DES | QA
+# domain_name: "grupoib.local"             # Dominio de la empresa
+# wsus_server: "ibmwsusvp01"               # Servidor WSUS (solo para modo wsus)
+# ad_username: "itbipat1"                  # Usuario AD (solo para modo wsus)
+# ad_password: "password"                  # Password AD (solo para modo wsus)
+# selected_category: ["CriticalUpdates", "SecurityUpdates"]  # Categorías de parches
+
+# Variables OPCIONALES para Windows con valores por defecto
+update_operation: "install"                # install | download
+reboot_after_installation: true           # Reiniciar después de instalar
+resume_services: true                     # Reanudar servicios después del parchado
+perform_ou_registration: false           # Registrar en OU de Active Directory
+rescue_endpoint: false                    # Ejecutar procedimientos de rescate en caso de fallo
+save_logs: false                         # Guardar logs de parchado
+logs_path: "C:/temp/patch_logs"          # Ruta para guardar logs
+
+# ================== VARIABLES LINUX ==================
+# Variables OBLIGATORIAS para Linux (deben ser proporcionadas)
+# patch_source: "satellite"                # internet | satellite | reposerver | susemanager
+# patch_type: "update_all"                 # update_all | security_all | rcp_all | bugfix_all | severity_high/medium/low/all
+# backup_to_jumphost: false               # Hacer backup a jumphost
+# reboot_required: false                  # Reiniciar después del parchado
+
+# Variables OPCIONALES para Linux con valores por defecto
+package_download_location: ""            # Ubicación para descargar paquetes
+yum_exclude_patch_list: ""              # Lista de parches excluidos (separados por coma)
+jumphost_path: "/tmp"                   # Ruta en jumphost para backups
+boot_space_threshold_mb: 256            # Umbral de espacio libre en /boot (MB)
+yum_clean_all: false                    # Ejecutar yum clean all después del parchado
+force_reboot: false                     # Forzar reinicio aunque esté actualizado
+
+# Variables de notificación Linux
+send_email: false                       # Enviar notificaciones por email
+recipients: []                          # Lista de destinatarios de email
+smtp_host_ip: ""                        # IP del servidor SMTP
+smtp_port: 25                           # Puerto SMTP
+attach_config_data: false              # Adjuntar archivos de configuración al email
+teams_notification: false              # Enviar notificaciones a MS Teams
+channel_webhook_url: ""                 # URL webhook de Teams
+sfs_upload: false                       # Subir resultados a SFS
+
+# Variables de servicios Linux
+service_restart_list: ""               # Lista de servicios a reiniciar (separados por coma)
+app_service_stop_script: ""            # Script para detener servicios de aplicación
+app_service_start_script: ""           # Script para iniciar servicios de aplicación
+
+# Variables adicionales Linux
+skip_cluster_check: true               # Omitir verificación de cluster
+system_load_check: false              # Verificar carga del sistema antes del parchado
+filesystems_to_check: []              # Sistemas de archivos a verificar espacio libre
+other_fs_space_threshold_perc: 25      # Umbral de espacio libre para otros filesystems (%)
+disable_repo: ""                       # Repositorios a deshabilitar (separados por coma)
+enable_repo: ""                        # Repositorios a habilitar (separados por coma)
+disable_gpg_check: false              # Deshabilitar verificación GPG
+run_patch_scan: false                 # Ejecutar escaneo de parches antes y después
+configure_patch_source: false         # Configurar fuente de parches
+patch_source_url: ""                  # URL de la fuente de parches
+fail_on_error: true                   # Fallar en caso de error durante el parchado
+change_number: ""                     # Número de ticket de cambio
+
+# ================== EJEMPLOS DE USO ==================
+# Para Windows WSUS:
+# ---
+# type_os: "windows"
+# patching_mode: "wsus"
+# target_environment: "DES"
+# domain_name: "grupoib.local"
+# wsus_server: "ibmwsusvp01"
+# ad_username: "itbipat1"
+# ad_password: "G.3pmE_yTZvpUZ98Q.FzsRZ4V"
+# selected_category: ["CriticalUpdates", "SecurityUpdates"]
+
+# Para Linux Satellite:
+# ---
+# type_os: "linux"
+# patch_source: "satellite"
+# patch_type: "security_all"
+# backup_to_jumphost: true
+# reboot_required: true
+# jumphost_path: "/backup/patches"
+
+# Para detección automática:
+# ---
+# # type_os se detecta automáticamente
+# # Proporcionar variables según el SO detectado

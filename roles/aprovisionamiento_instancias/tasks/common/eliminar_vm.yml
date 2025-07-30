@@ -1,0 +1,39 @@
+---
+- name: "PASO 1 INICIANDO: vm_delete"
+  ansible.builtin.debug:
+    msg:
+      - "VM: {{ vm_config.name }}"
+      - "Estado: INICIANDO ELIMINACION"
+  tags: [common, delete, notificacion]
+
+- name: "Eliminar VM"
+  community.vmware.vmware_guest:
+    hostname: "{{ vcenter_credentials.hostname }}"
+    username: "{{ vcenter_credentials.username }}"
+    password: "{{ vcenter_credentials.password }}"
+    validate_certs: false
+    datacenter: "{{ vcenter_credentials.datacenter }}"
+    name: "{{ vm_config.name }}"
+    state: absent
+    force: true
+  register: resultado_eliminar_vm
+  failed_when: false
+  tags: [common, delete]
+
+- name: "PASO 1 COMPLETADO: vm_delete"
+  ansible.builtin.debug:
+    msg:
+      - "VM: {{ vm_config.name }}"
+      - "Estado: {{ 'ELIMINADA' if resultado_eliminar_vm.changed else 'NO_EXISTIA' }}"
+      - "Siguiente: crearVm"
+  tags: [common, delete, notificacion]
+
+- name: "Establecer facts eliminacion"
+  ansible.builtin.set_fact:
+    vm_eliminacion_resultado:
+      paso: "1_vm_delete"
+      completado: true
+      vm_name: "{{ vm_config.name }}"
+      eliminada: "{{ resultado_eliminar_vm.changed }}"
+      timestamp: "{{ ansible_date_time.iso8601 }}"
+  tags: [common, delete, facts]

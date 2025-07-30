@@ -1,0 +1,192 @@
+---
+# skipping ansible-lint rule 403 because we want to install latest patches
+- name: Set exec_message
+  ansible.builtin.set_fact:
+    exec_message:
+      "{{ exec_message }}
+      Patching started.\n\n
+      Host OS and version details: {{ ansible_distribution }}
+      {{ ansible_distribution_version }}.\n\n
+      patch_type: {{ patch_type }}.\n\n"
+
+- name: Add change number to exec_message
+  ansible.builtin.set_fact:
+    exec_message:
+      "{{ exec_message }}
+      Change number: {{ change_number }}\n\n"
+  when: change_number | length > 0
+
+- name: Invalid patch_type
+  when:
+    - patch_type != "update_all"
+    - patch_type != "rcp_all"
+    - patch_type != "bugfix_all"
+    - patch_type != "security_all"
+    - patch_type != "severity_high"
+    - patch_type != "severity_medium"
+    - patch_type != "severity_low"
+    - patch_type != "severity_all"
+    - patch_type is not regex("^.*(RHBA|RHSA|CVE).*$")
+    - patch_type != "download_only"
+    - patch_type != "install_from_folder"
+  block:
+
+    - name: Return code generation in case invalid patch type is provided
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "account"
+        rc_group: "misconfiguration"
+        rc_number: 6001
+        rc_message:
+          "{{ patch_type }} is an invalid patch type.
+          Please refer readme file for more details."
+        documentation: "{{ readme_url }}"
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Invalid patch_type, exiting...\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Invalid patch type"
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Use custom repo files
+  ansible.builtin.include_tasks: custom_repo.yml
+  when:
+    - use_custom_repo
+    - continue_execution
+
+- name: Run pre patching steps - RHEL 8
+  ansible.builtin.include_tasks: pre_patch_steps.yml
+  when:
+    - run_pre_patch_steps
+    - ansible_distribution_major_version | int == 8
+    - continue_execution
+
+- name: Run yum update all on host - update & upgrade
+  ansible.builtin.include_tasks: update_rcp.yml
+  when:
+    - (patch_type == "update_all" or patch_type == "rcp_all")
+    - continue_execution
+
+- name: Run yum bugfix update on host
+  ansible.builtin.include_tasks: bugfix.yml
+  when:
+    - patch_type == "bugfix_all"
+    - continue_execution
+
+- name: Run security_all on host
+  ansible.builtin.include_tasks: security.yml
+  when:
+    - patch_type == "security_all"
+    - continue_execution
+
+- name: Install patches based on severity
+  ansible.builtin.include_tasks: severity_patches.yml
+  when:
+    (patch_type == "severity_high" or patch_type == "severity_medium" or
+    patch_type == "severity_low" or patch_type == "severity_all")
+    and continue_execution
+
+- name: Install specific patches
+  when:
+    - patch_type is regex("^.*(RHBA|RHSA|CVE).*$")
+    - continue_execution
+  block:
+
+    - name: Create a list from input package(s)
+      ansible.builtin.set_fact:
+        patch_list: "{{ patch_type.split(',') }}"
+
+    - name: Running for patch set(s)
+      ansible.builtin.include_tasks: install_specific_patch.yml
+      loop: "{{ patch_list }}"
+
+- name: Download packages to a folder
+  ansible.builtin.include_tasks: download_packages.yml
+  when:
+    - patch_type == "download_only"
+    - continue_execution
+
+- name: Install patches from a folder
+  ansible.builtin.include_tasks: install_from_folder.yml
+  when:
+    - patch_type == "install_from_folder"
+    - continue_execution
+
+- name: Run yum clean all
+  when:
+    - patch_status == 'success'
+    - yum_clean_all
+    - continue_execution
+  block:
+
+    - name: Run yum clean all
+      ansible.builtin.command: yum clean all
+      changed_when: true
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          yum clean all command completed successfully.\n\n"
+
+  rescue:
+
+    - name: Return code generation in case yum clean all command fails
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5020
+        rc_message:
+          "The command yum clean all has failed.
+          Further investigation is required by the developer."
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          The command yum clean all has failed.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Yum clean all failed"
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false

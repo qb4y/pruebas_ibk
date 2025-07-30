@@ -1,0 +1,19 @@
+---
+## Pre-Tasks Dispatcher - Redirección por OS
+## Función: Ejecutar pre_tasks específicos según vm_ostype
+
+- name: "Determinar OS para pre_tasks"
+  ansible.builtin.set_fact:
+    es_windows: "{{ vm_ostype == 'windows' }}"
+    es_linux: "{{ vm_ostype == 'linux' }}"
+  tags: [pre_tasks, os_detection]
+
+- name: "Ejecutar pre_tasks Windows"
+  ansible.builtin.include_tasks: pre_tasks_windows.yml
+  when: es_windows
+  tags: [pre_tasks, windows]
+
+- name: "Ejecutar pre_tasks Linux"
+  ansible.builtin.include_tasks: pre_tasks_linux.yml
+  when: es_linux
+  tags: [pre_tasks, linux] 

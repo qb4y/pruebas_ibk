@@ -1,0 +1,44 @@
+---
+# Windows Patch Management Role Default Variables
+# Following Kyndryl Ansible Role Development Standards
+
+# Mandatory Variables (must be provided)
+winpatch_patching_mode: "wsus"
+winpatch_target_environment: "PROD"
+winpatch_domain_name: ""
+winpatch_wsus_server: ""
+winpatch_ad_username: ""
+winpatch_ad_password: ""
+
+# Optional Variables with Defaults
+winpatch_selected_category: ["CriticalUpdates", "SecurityUpdates"]
+winpatch_update_operation: "install"
+winpatch_reboot_after_installation: true
+winpatch_resume_services: true
+winpatch_perform_ou_registration: false
+winpatch_rescue_endpoint: false
+winpatch_save_logs: false
+winpatch_logs_path: "C:/temp/patch_logs"
+winpatch_update_code: "ALL"
+winpatch_sfs_upload_url: ""
+
+# Return Codes
+winpatch_return_codes:
+  success:
+    2000: "Updates installed successfully"
+    2001: "No updates available"
+    2002: "Updates downloaded only"
+  error:
+    3000: "Invalid patching mode specified"
+    3001: "Missing required variables for WSUS mode"
+    3002: "Missing required variables for SCCM mode"
+    3003: "WSUS server connectivity failure"
+    3004: "SCCM connectivity failure"
+    3005: "Insufficient disk space for updates"
+    3006: "Windows Update service failure"
+    3007: "Update installation failed"
+    3008: "System reboot failed"
+    3009: "AD OU registration failed"
+    3010: "WSUS client configuration failed"
+    3011: "Rescue procedures failed"
+    3012: "Service restoration failed" 

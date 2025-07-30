@@ -1,0 +1,15 @@
+---
+## Pre-Tasks específicos para Windows
+## Función: Validaciones previas básicas y rápidas
+
+- name: "Validar variables específicas Windows"
+  ansible.builtin.include_tasks: validar_variables_requeridas.yml
+  tags: [pre_tasks_windows, validar_variables]
+
+- name: "Validar conexión vCenter para Windows"
+  ansible.builtin.include_tasks: validar_conexion_vcenter.yml
+  tags: [pre_tasks_windows, validar_conexion]
+
+- name: "Verificar IP básica para Windows"
+  ansible.builtin.include_tasks: verificar_ip_disponible.yml
+  tags: [pre_tasks_windows, verificar_ip] 

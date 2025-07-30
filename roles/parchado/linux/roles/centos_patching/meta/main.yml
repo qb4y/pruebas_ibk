@@ -1,0 +1,15 @@
+---
+galaxy_info:
+  author: Radha Krishna M G, Shushank Goswami
+  role_name: centos_patching
+  description: Role to patch CentOS servers.
+  company: Kyndryl
+  license: Kyndryl Intellectual Property
+  min_ansible_version: '2.9.10'
+  platforms:
+    - name: EL
+      versions:
+        - all
+  galaxy_tags:
+    - patching
+dependencies: []

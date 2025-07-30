@@ -1,0 +1,50 @@
+---
+- name: Validate AD variables
+  fail:
+    msg: "Missing AD variables: target_environment, domain_name, ad_username, ad_password"
+  when: target_environment is not defined or domain_name is not defined or ad_username is not defined or ad_password is not defined
+
+- name: Get Windows version
+  ansible.windows.win_shell: |
+    $os = Get-WmiObject -Class Win32_OperatingSystem
+    if ($os.Caption -match "2022") { Write-Output "2022" }
+    elseif ($os.Caption -match "2019") { Write-Output "2019" }
+    elseif ($os.Caption -match "2016") { Write-Output "2016" }
+    else { Write-Output "2012" }
+  register: windows_version_output
+
+- name: Set target OU path
+  set_fact:
+    target_ou_path: >-
+      {%- if windows_version_output.stdout.strip() == '2022' -%}
+        {%- if target_environment in ['DES', 'PRO'] -%}
+          OU=WIN2K22,OU=AdminIBM,OU=ServidoresTMP,DC={{ domain_name.split('.')[0] }},DC={{ domain_name.split('.')[1] }}
+        {%- else -%}
+          OU=UAT_WSUS_NEW_ACTIV,OU=AdminIBM,OU=ServidoresTMP,DC={{ domain_name.split('.')[0] }},DC={{ domain_name.split('.')[1] }}
+        {%- endif -%}
+      {%- elif windows_version_output.stdout.strip() == '2019' -%}
+        OU={{ target_environment }},OU=WIN2K19_2,OU=ServidoresTMP,DC={{ domain_name.split('.')[0] }},DC={{ domain_name.split('.')[1] }}
+      {%- else -%}
+        OU={{ target_environment }}_WSUS_NEW_ACTIV,OU=AdminIBM,OU=ServidoresTMP,DC={{ domain_name.split('.')[0] }},DC={{ domain_name.split('.')[1] }}
+      {%- endif -%}
+
+- name: Install RSAT AD PowerShell
+  ansible.windows.win_feature:
+    name: RSAT-AD-PowerShell
+    state: present
+
+- name: Move computer to target OU
+  ansible.windows.win_shell: |
+    $securePassword = ConvertTo-SecureString "{{ ad_password }}" -AsPlainText -Force
+    $credential = New-Object System.Management.Automation.PSCredential("{{ ad_username }}", $securePassword)
+    $computer = Get-ADComputer -Identity "{{ ansible_hostname }}" -Properties DistinguishedName -ErrorAction Stop
+    $currentOU = ($computer.DistinguishedName -split ',',2)[1]
+    $targetOU = "{{ target_ou_path }}"
+    if ($currentOU -ne $targetOU) {
+        Move-ADObject -Identity $computer.DistinguishedName -TargetPath $targetOU -Credential $credential
+        Write-Output "MOVED"
+    } else {
+        Write-Output "ALREADY_CORRECT"
+    }
+  register: move_result
+  failed_when: move_result.rc != 0

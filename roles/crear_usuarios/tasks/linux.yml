@@ -1,0 +1,167 @@
+---
+- name: 📁 Crear grupos del sistema (Linux)
+  ansible.builtin.group:
+    name: "{{ item.nombre }}"
+    state: present
+  loop: "{{ CU_GRUPOS }}"
+  register: grupos_creados
+  become: true
+
+- name: 📁 Crear grupos secundarios necesarios (Linux)
+  ansible.builtin.group:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ CU_GRUPOS | map(attribute='usuarios') | flatten | map(attribute='permisos') | map('extract', permission_map.linux) | flatten | unique }}"
+  register: grupos_secundarios_creados
+  become: true
+
+- name: Mostrar grupos creados
+  ansible.builtin.debug:
+    msg: "📁 Grupo '{{ item.item.nombre }}': {{ 'Creado' if item.changed else 'Ya existía' }}"
+  loop: "{{ grupos_creados.results }}"
+  loop_control:
+    label: "{{ item.item.nombre }}"
+
+- name: 🎲 Generar contraseñas aleatorias para usuarios
+  ansible.builtin.set_fact:
+    generated_passwords: "{{ generated_passwords | default({}) | combine({item.1.nombre: lookup('password', '/dev/null length=12 chars=ascii_letters,digits,!@#$%')}) }}"
+  loop: "{{ CU_GRUPOS | subelements('usuarios') }}"
+  loop_control:
+    label: "{{ item.1.nombre }}"
+  no_log: true  # No mostrar contraseñas en logs
+
+- name: 👤 Crear usuarios del sistema (Linux)
+  ansible.builtin.user:
+    name: "{{ item.1.nombre }}"
+    password: "{{ generated_passwords[item.1.nombre] | password_hash('sha512') }}"
+    group: "{{ item.0.nombre }}"
+    groups: "{{ permission_map.linux[item.1.permisos] | join(',') }}"
+    shell: "{{ default_shell }}"
+    home: "{{ home_base_path }}/{{ item.1.nombre }}"
+    create_home: true
+    state: present
+    append: true
+    update_password: always
+  loop: "{{ CU_GRUPOS | subelements('usuarios') }}"
+  loop_control:
+    label: "{{ item.1.nombre }} -> {{ item.0.nombre }}"
+  register: usuarios_creados
+  become: true
+
+- name: Mostrar usuarios creados
+  ansible.builtin.debug:
+    msg: |
+      👤 Usuario '{{ item.item.1.nombre }}': {{ 'Creado' if item.changed else 'Ya existía' }}
+      📁 Grupo principal: {{ item.item.0.nombre }}
+      🔐 Grupos adicionales: {{ permission_map.linux[item.item.1.permisos] | join(', ') }}
+      🏠 Home: {{ home_base_path }}/{{ item.item.1.nombre }}
+  loop: "{{ usuarios_creados.results }}"
+  loop_control:
+    label: "{{ item.item.1.nombre }}"
+
+- name: 🔐 Configurar sudoers para usuarios administradores (Linux)
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers.d/{{ item.1.nombre }}
+    create: true
+    mode: '0440'
+    line: "{{ item.1.nombre }} ALL=(ALL) NOPASSWD:ALL"
+    validate: '/usr/sbin/visudo -cf %s'
+  loop: "{{ CU_GRUPOS | subelements('usuarios') }}"
+  loop_control:
+    label: "{{ item.1.nombre }}"
+  when: 
+    - item.1.permisos == 1  # Solo administradores
+    - permission_map.linux[item.1.permisos] is search('sudo|wheel')
+  become: true
+  register: sudoers_config
+
+- name: Mostrar configuración sudoers
+  ansible.builtin.debug:
+    msg: "🔐 Sudoers configurado para: {{ item.item.1.nombre }}"
+  loop: "{{ sudoers_config.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.1.nombre }}"
+  when: item.changed | default(false)
+
+- name: 🔍 Verificar creación de usuarios (Linux)
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ item.1.nombre }}"
+  loop: "{{ CU_GRUPOS | subelements('usuarios') }}"
+  loop_control:
+    label: "{{ item.1.nombre }}"
+  register: user_verification
+  failed_when: false
+
+- name: 🔍 Verificar membresía de grupos
+  ansible.builtin.command: "groups {{ item.1.nombre }}"
+  loop: "{{ CU_GRUPOS | subelements('usuarios') }}"
+  loop_control:
+    label: "{{ item.1.nombre }}"
+  register: group_membership
+  changed_when: false
+  failed_when: false
+
+- name: Mostrar verificación de membresía
+  ansible.builtin.debug:
+    msg: |
+      👤 Usuario: {{ item.item.1.nombre }}
+      👥 Grupos: {{ item.stdout | default('Error al verificar') }}
+  loop: "{{ group_membership.results }}"
+  loop_control:
+    label: "{{ item.item.1.nombre }}"
+
+- name: 🏠 Verificar directorios home creados
+  ansible.builtin.stat:
+    path: "{{ home_base_path }}/{{ item.1.nombre }}"
+  loop: "{{ CU_GRUPOS | subelements('usuarios') }}"
+  loop_control:
+    label: "{{ item.1.nombre }}"
+  register: home_verification
+
+- name: Mostrar verificación de directorios home
+  ansible.builtin.debug:
+    msg: "🏠 Home {{ item.item.1.nombre }}: {{ 'Existe' if item.stat.exists else 'No encontrado' }}"
+  loop: "{{ home_verification.results }}"
+  loop_control:
+    label: "{{ item.item.1.nombre }}"
+
+- name: 🔒 Forzar cambio de contraseña en próximo login (Linux)
+  ansible.builtin.command: "chage -d 0 {{ item.1.nombre }}"
+  loop: "{{ CU_GRUPOS | subelements('usuarios') }}"
+  loop_control:
+    label: "{{ item.1.nombre }}"
+  register: password_expiry
+  changed_when: true
+  become: true
+
+- name: ❌ Fallar si algún usuario no fue creado correctamente
+  ansible.builtin.fail:
+    msg: "❌ Error: Usuario {{ item.item.1.nombre }} no fue creado correctamente."
+  loop: "{{ user_verification.results }}"
+  loop_control:
+    label: "{{ item.item.1.nombre }}"
+  when: 
+    - item.failed | default(false)
+    - item.ansible_facts is not defined
+
+- name: ✅ Confirmación de creación exitosa (Linux)
+  ansible.builtin.debug:
+    msg: |
+      ✅ Usuarios y grupos creados exitosamente en {{ inventory_hostname }}
+      📊 Grupos creados: {{ CU_GRUPOS | map(attribute='nombre') | join(', ') }}
+      👤 Usuarios creados: {{ CU_GRUPOS | map(attribute='usuarios') | flatten | map(attribute='nombre') | join(', ') }}
+      🐧 Sistema: {{ ansible_distribution }} {{ ansible_distribution_version }}
+      🏠 Ruta base: {{ home_base_path }}
+
+- name: 🔐 OUTPUT - Contraseñas generadas automáticamente
+  ansible.builtin.debug:
+    msg: |
+      🔐 CONTRASEÑAS GENERADAS AUTOMÁTICAMENTE:
+      {% for usuario in CU_GRUPOS | map(attribute='usuarios') | flatten %}
+      👤 {{ usuario.nombre }}: {{ generated_passwords[usuario.nombre] }}
+      {% endfor %}
+      
+      ⚠️  IMPORTANTE: Estas contraseñas son temporales y deben cambiarse en el primer login.
+      ⚠️  Guarda estas contraseñas de forma segura antes de cerrar esta ejecución.
+      🔒 Los usuarios deberán cambiar su contraseña en el próximo login (chage -d 0).

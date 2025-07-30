@@ -1,0 +1,72 @@
+---
+
+- name: Unmount NFS volume
+  block:
+
+    - name: Unmount NFS volume
+      ansible.posix.mount:
+        path: "{{ nfs_mountpoint }}"
+        state: unmounted
+
+    - name: Update exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Remote NFS volume has been unmounted successfully.\n\n"
+
+  rescue:
+
+    - name: Unmount NFS volume in force mode
+      ansible.builtin.command: umount -f {{ nfs_mountpoint }}
+      register: umount_out
+      ignore_errors: true
+      changed_when: true
+
+    - name: Update exec_message
+      when: umount_out is not failed
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Remote NFS volume has been unmounted successfully.\n\n"
+
+    - name: Umount command failed
+      when: umount_out is failed
+      block:
+
+        - name:
+            Return code generation in case of
+            NFS volume unmount failure
+          ansible.builtin.include_role:
+            name: returncode
+          vars:
+            rc_support: "developer"
+            rc_group: "component_playbook"
+            rc_number: 5034
+            rc_message:
+              "Unmounting remote NFS volume has failed.
+              Further investigation is required by the developer."
+
+        - name: Set exec_message
+          ansible.builtin.set_fact:
+            exec_message:
+              "{{ exec_message }}
+              Unmounting remote NFS volume has failed.\n\n"
+
+        - name: Send communication
+          ansible.builtin.include_tasks: send_notification.yml
+
+        - name: Remove lock file
+          ansible.builtin.file:
+            path:
+              /etc/ansible/facts.d{{
+              '' if lock_file_dir.changed else '/unix_patching.fact' }}
+            state: absent
+
+        - name: End the job for the host {{ inventory_hostname }}
+          ansible.builtin.fail:
+            msg: "NFS volume unmount failed"
+          when: fail_on_error | bool
+
+        - name: Set continue_execution flag
+          ansible.builtin.set_fact:
+            continue_execution: false

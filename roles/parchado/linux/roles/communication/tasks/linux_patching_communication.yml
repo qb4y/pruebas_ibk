@@ -1,0 +1,326 @@
+---
+
+- name: Fetch files to tower
+  when: communication_type == "individual"
+  delegate_to: localhost
+  become: false
+  block:
+
+    - name: Fetch files to Tower from endpoints in case of success
+      ansible.builtin.lineinfile:
+        line: "{{ current_host }}"
+        path: "{{ hostvars['localhost'].base_dir }}/successful_hosts"
+        create: true
+        insertafter: EOF
+        mode: '0744'
+      when:
+        - teams_notification
+        - channel_webhook_url | length
+        - patch_status == 'success'
+
+    - name: Fetch files to Tower from endpoints in case hosts are up-to-date
+      ansible.builtin.lineinfile:
+        line: "{{ current_host }}"
+        path: "{{ hostvars['localhost'].base_dir }}/up_to_date_hosts"
+        create: true
+        insertafter: EOF
+        mode: '0744'
+      when:
+        - teams_notification
+        - channel_webhook_url | length
+        - patch_status == 'nothing_to_do'
+
+    - name: Fetch files to Tower from endpoints in case of failure
+      ansible.builtin.lineinfile:
+        line: "{{ current_host }}"
+        path: "{{ hostvars['localhost'].base_dir }}/failed_hosts"
+        create: true
+        insertafter: EOF
+        mode: '0744'
+      when:
+        - teams_notification
+        - channel_webhook_url | length
+        - patch_status == 'failure'
+        - patching_pre_req_validation
+
+    - name: Fetch files to Tower from endpoints in case of pre-req failure
+      ansible.builtin.lineinfile:
+        line: "{{ current_host }}"
+        path: "{{ hostvars['localhost'].base_dir }}/failed_pre_req_hosts"
+        create: true
+        insertafter: EOF
+        mode: '0744'
+      when:
+        - teams_notification
+        - channel_webhook_url | length
+        - patch_status == 'failure'
+        - not patching_pre_req_validation
+        - gathered_facts.unreachable is not defined
+
+    - name: Fetch files to Tower from endpoints in case of connection failure
+      ansible.builtin.lineinfile:
+        line: "{{ current_host }}"
+        path: "{{ hostvars['localhost'].base_dir }}/unreachable_hosts"
+        create: true
+        insertafter: EOF
+        mode: '0744'
+      when:
+        - teams_notification
+        - channel_webhook_url | length
+        - gathered_facts.unreachable is defined
+
+    - name: Fetch files to Tower from endpoints with detailed results
+      ansible.builtin.lineinfile:
+        line: "{{ exec_message }}\n\n"
+        path: "{{ hostvars['localhost'].base_dir }}/detailed_results"
+        create: true
+        insertafter: EOF
+        mode: '0744'
+      when: sfs_upload or send_email
+
+- name: Send email notification
+  when:
+    - send_email
+    - recipients | length
+    - communication_type == "consolidated"
+  block:
+
+    - name: Fetch detailed results
+      ansible.builtin.command:
+        cat {{ hostvars['localhost'].base_dir }}/detailed_results
+      register: detailed_results
+      changed_when: false
+      failed_when: false
+      delegate_to: localhost
+      become: false
+
+    - name: Send consolidated email notification without config data
+      when:
+        - not attach_config_data
+      block:
+
+        - name: Send email
+          community.general.mail:
+            host: "{{ smtp_host_ip }}"
+            port: "{{ smtp_port }}"
+            subject: "Consolidated Patching status report"
+            from: "{{ sender }}"
+            body: "{{ detailed_results.stdout }}"
+            to: "{{ recipients }}"
+            subtype: "plain"
+            charset: "utf8"
+
+    - name: Send consolidated email notification with config data
+      when:
+        - attach_config_data
+      block:
+
+        - name: Jumphop selection
+          ansible.builtin.include_tasks: jumphop_selection.yml
+
+        - name: Find the files to attach to the mail
+          ansible.builtin.find:
+            paths: "{{ jumphost_path }}/"
+            patterns: "*_Patch_config_{{ tower_job_id }}_*.txt"
+          register: files_to_attach
+          changed_when: false
+          become: false
+          delegate_to: "{{ jh_delegate_to_ip }}"
+          vars:
+            ansible_user: "{{ jh_user }}"
+            ansible_ssh_private_key_file: "{{ jh_ssh_private_key_file }}"
+            ansible_ssh_common_args: "{{ jh_ssh_extra_args }}"
+            ansible_ssh_host_key_checking: false
+
+        - name: Create a list of files to attach
+          ansible.builtin.set_fact:
+            files_to_attach:
+              "{{ files_to_attach.files | map(attribute='path') | list }}"
+
+        - name: Send email
+          community.general.mail:
+            host: "{{ smtp_host_ip }}"
+            port: "{{ smtp_port }}"
+            subject: "Consolidated Patching status report"
+            from: "{{ sender }}"
+            body: "{{ detailed_results.stdout }}"
+            to: "{{ recipients }}"
+            attach: "{{ files_to_attach }}"
+            subtype: "plain"
+            charset: "utf8"
+          become: false
+          delegate_to: "{{ jh_delegate_to_ip }}"
+          vars:
+            ansible_user: "{{ jh_user }}"
+            ansible_ssh_private_key_file: "{{ jh_ssh_private_key_file }}"
+            ansible_ssh_common_args: "{{ jh_ssh_extra_args }}"
+            ansible_ssh_host_key_checking: false
+
+  rescue:
+
+    - name: Return code generation in case of failure during sending email
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "account"
+        rc_group: "misconfiguration"
+        rc_number: 6011
+        rc_message:
+          "Issues while sending email notification.
+          Please make sure correct SMTP host and port values are passed."
+        documentation: "{{ readme_url }}"
+
+    - name: Update exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Issues while sending email notification."
+
+- name: MS teams notification
+  when:
+    - teams_notification
+    - channel_webhook_url | length
+  block:
+
+    - name: Send individual teams notification
+      when:
+        - communication_type == "individual"
+        - continue_execution
+      block:
+
+        - name: Teams notification module
+          ansible.builtin.uri:
+            url: "{{ channel_webhook_url }}"
+            body: "{{ lookup('template', card_name) }}"
+            body_format: json
+            method: POST
+            validate_certs: false
+            timeout: 60
+          delegate_to: localhost
+          become: false
+          vars:
+            card_name: "../Library/linux_patching_card.j2"
+            tower_host: "{{ lookup('env', 'TOWER_HOST') }}"
+            tower_job_suffix: "#/jobs/playbook/{{ tower_job_id }}"
+
+    - name: Send consolidated teams notification
+      when:
+        - communication_type == "consolidated"
+      delegate_to: localhost
+      become: false
+      block:
+
+        - name: Fetch the list of successful servers
+          ansible.builtin.command:
+            cat {{ hostvars['localhost'].base_dir }}/successful_hosts
+          register: successful_hosts
+          changed_when: false
+          failed_when: false
+
+        - name: Fetch the list of up-to-date servers
+          ansible.builtin.command:
+            cat {{ hostvars['localhost'].base_dir }}/up_to_date_hosts
+          register: up_to_date_hosts
+          changed_when: false
+          failed_when: false
+
+        - name: Fetch the list of failed servers
+          ansible.builtin.command:
+            cat {{ hostvars['localhost'].base_dir }}/failed_hosts
+          register: failed_hosts
+          changed_when: false
+          failed_when: false
+
+        - name: Fetch the list of pre-req failed servers
+          ansible.builtin.command:
+            cat {{ hostvars['localhost'].base_dir }}/failed_pre_req_hosts
+          register: failed_pre_req_hosts
+          changed_when: false
+          failed_when: false
+
+        - name: Fetch the list of unreachable servers
+          ansible.builtin.command:
+            cat {{ hostvars['localhost'].base_dir }}/unreachable_hosts
+          register: unreachable_hosts
+          changed_when: false
+          failed_when: false
+
+        - name: Teams notification module
+          ansible.builtin.uri:
+            url: "{{ channel_webhook_url }}"
+            body: "{{ lookup('template', card_name) }}"
+            body_format: json
+            method: POST
+            validate_certs: false
+            timeout: 60
+          become: false
+          vars:
+            card_name: "../Library/linux_patching_card_consolidated.j2"
+            tower_host: "{{ lookup('env', 'TOWER_HOST') }}"
+            tower_job_suffix: "#/jobs/playbook/{{ tower_job_id }}"
+
+  rescue:
+
+    - name:
+        Return code generation in case of failure
+        during sending MS Teams notification
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "account"
+        rc_group: "misconfiguration"
+        rc_number: 6012
+        rc_message:
+          "Issues while sending MS Teams notification.
+          Please make sure correct webhook url is passed."
+
+    - name: Update exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Issues while sending MS Teams notification."
+
+- name: Upload to SFS
+  when:
+    - sfs_upload
+    - communication_type == "consolidated"
+  block:
+
+    - name: Archive the content
+      community.general.archive:
+        path: "{{ hostvars['localhost'].base_dir }}/detailed_results"
+        dest: "{{ hostvars['localhost'].base_dir }}/detailed_results.zip"
+        format: "zip"
+        remove: true
+        mode: '0744'
+
+    - name: Upload to SFS
+      ansible.builtin.include_role:
+        name: sfs_upload
+      vars:
+        sfs_upload_stage: "upload"
+        output_file_name:
+          "detailed_results.zip"
+        secondary_upload_results: true
+        upload_url_subfolder: "info"
+
+  rescue:
+
+    - name:
+        Return code generation in case of failure
+        during uploading results to SFS
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5056
+        rc_message:
+          "Issues while uploading results to SFS.
+          Further investigation is required by the developer."
+
+    - name: Update exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Issues while uploading results to SFS."

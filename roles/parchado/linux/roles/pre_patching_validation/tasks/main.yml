@@ -1,0 +1,404 @@
+---
+# tasks file for pre_patching_validation
+
+- name: Gather required facts
+  block:
+
+    - name: Gather required facts
+      ansible.builtin.setup:
+        gather_subset: "!all,distribution_major_version,date_time"
+      ignore_unreachable: true
+      register: gathered_facts
+
+    - name: "Gather facts failed"
+      ansible.builtin.fail:
+        msg: "Gather facts failed for host"
+      when: gathered_facts.unreachable is defined
+
+  rescue:
+
+    - name: Fail with return code 1001
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_number: 1001
+        rc_support: "account"
+        rc_group: "misconfiguration"
+        rc_message:
+          "Error Message: {% if (ansible_failed_result.stderr is defined)
+          %}{{ ansible_failed_result.stderr }}
+          {% elif (ansible_failed_result.response is defined)
+          %}{{ ansible_failed_result.response }}{% elif
+          (ansible_failed_result.msg is defined) %}
+          {{ ansible_failed_result.msg }}{% elif
+          (ansible_failed_result.stdout is defined) %}{{
+          ansible_failed_result.stdout }}
+          {% else %}Please refer to the job log
+          for more details{% endif %}"
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Unable to connect to the remote host.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Unable to connect to the remote host."
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Make sure there are no parallel executions
+  ansible.builtin.include_tasks: lock_file.yml
+  when: continue_execution
+
+- name: Configure patch source - RHEL and CentOS
+  ansible.builtin.include_tasks: configure_patch_source.yml
+  when:
+    - configure_patch_source
+    - (patch_source == 'satellite' or patch_source == 'reposerver')
+    - ansible_distribution == "RedHat" or ansible_distribution == "CentOS"
+    - continue_execution
+
+- name: Patch source validation
+  ansible.builtin.include_tasks: patch_source_validation.yml
+  when: continue_execution
+
+- name: Space validation
+  ansible.builtin.include_tasks: space_validation.yml
+  when: continue_execution
+
+- name: CPU validation
+  when:
+    - system_load_check
+    - continue_execution
+  block:
+
+    - name: Check current CPU usage  # noqa risky-shell-pipe
+      ansible.builtin.shell: |
+        vmstat 60 2 | awk '{ for (i=1;i<=NF;i++)
+        if ($i=="id") {getline;getline;print 100-$i }}'
+      register: cpu_usage
+      changed_when: false
+
+    - name: Validate CPU usage
+      ansible.builtin.set_fact:
+        cpu_validation: false
+        exec_message:
+          "{{ exec_message }}
+          Current CPU usage is {{ cpu_usage.stdout }}\n\n"
+      when: cpu_usage.stdout | int >= 95
+
+  rescue:
+
+    - name: Return code generation in case of CPU usage command failure
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5003
+        rc_message:
+          "The command to get the current CPU usage has failed.
+          Further investigation is required by the developer."
+
+    - name: Set validation flag and message
+      ansible.builtin.set_fact:
+        cpu_validation: false
+        exec_message:
+          "{{ exec_message }}
+          Unable to fetch current CPU usage on {{ inventory_hostname }}.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Unable to fetch current CPU usage"
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Memory validation
+  when:
+    - system_load_check
+    - continue_execution
+  block:
+
+    - name: Check current memory usage  # noqa risky-shell-pipe
+      ansible.builtin.shell: |
+        free | grep -i mem | awk '{print $3/$2*100}'
+      register: mem_usage
+      changed_when: false
+
+    - name: Validate memory usage
+      ansible.builtin.set_fact:
+        mem_validation: false
+        exec_message:
+          "{{ exec_message }}
+          Current memory usage is {{ mem_usage.stdout }}.\n\n"
+      when: mem_usage.stdout | int >= 95
+
+  rescue:
+
+    - name: Return code generation in case of memory command failure
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5004
+        rc_message:
+          "The command to get the current memory usage has failed.
+          Further investigation is required by the developer."
+
+    - name: Set validation flag and message
+      ansible.builtin.set_fact:
+        mem_validation: false
+        exec_message:
+          "{{ exec_message }}
+          Unable to fetch current memory usage on {{ inventory_hostname }}.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Unable to fetch current memory usage"
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Cluster validation
+  ansible.builtin.include_tasks: cluster_validation.yml
+  when:
+    - not skip_cluster_check
+    - continue_execution
+
+- name: Additional steps for ubuntu OS
+  ansible.builtin.include_tasks: ubuntu.yml
+  when:
+    - patch_source == 'reposerver'
+    - ansible_distribution == "Ubuntu"
+    - ubuntu_repo_file_validation
+    - continue_execution
+
+- name: Validation failed
+  ansible.builtin.set_fact:
+    patching_pre_req_validation: false
+    exec_message:
+      "One or more pre check validations have failed.\n\n
+      Aborting the patching process.\n\n
+      Below are the failed checks,
+      which need to be corrected before running this playbook again:\n\n
+      {{ exec_message }}"
+  when: (not patch_source_validation or
+        not cpu_validation or
+        not mem_validation or
+        not space_validation or
+        not space_validation_boot or
+        not space_validation_var or
+        not cluster_validation or
+        not repo_file_validation) and
+        gathered_facts.unreachable is not defined
+
+- name: Validation successful
+  ansible.builtin.set_fact:
+    patching_pre_req_validation: true
+    exec_message:
+      "{{ exec_message }}
+      Pre check validations have been successful on
+      {{ inventory_hostname }}.\n\n"
+  when:
+    - patch_source_validation
+    - cpu_validation
+    - mem_validation
+    - space_validation
+    - space_validation_boot
+    - space_validation_var
+    - cluster_validation
+    - repo_file_validation
+    - gathered_facts.unreachable is not defined
+
+- name: Capture system diagnostic data
+  when:
+    - patching_pre_req_validation
+    - continue_execution
+  ansible.builtin.include_tasks: config_backup.yml
+
+- name: Copy configuration files to Jumphost
+  when:
+    - patching_pre_req_validation
+    - (backup_to_jumphost or attach_config_data)
+    - continue_execution
+  block:
+
+    - name: Fetch files to Tower from endpoints
+      ansible.builtin.fetch:
+        src: "/var/log/{{ pre_patching_output_file }}"
+        dest: "{{ hostvars['localhost'].base_dir }}/"
+        flat: true
+
+    - name: Jumphop selection
+      ansible.builtin.include_tasks: jumphop_selection.yml
+
+    - name: Copy files from Tower to Jumphost
+      ansible.builtin.copy:
+        src: "{{ hostvars['localhost'].base_dir }}/"
+        dest: "{{ jumphost_path }}/"
+        force: true
+        mode: '0644'
+      become: false
+      delegate_to: "{{ jh_delegate_to_ip }}"
+      register: config_backup_jh
+      vars:
+        ansible_user: "{{ jh_user }}"
+        ansible_ssh_private_key_file: "{{ jh_ssh_private_key_file }}"
+        ansible_ssh_common_args: "{{ jh_ssh_extra_args }}"
+        ansible_ssh_host_key_checking: false
+
+    - name: Backup configuration successful
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Pre patching configuration has been saved
+          to the jumphost successfully.\n\n
+          Please refer below file:\n\n
+          {{ jumphost_path }}/{{ pre_patching_output_file }}.\n\n"
+      when: not config_backup_jh.failed
+
+    - name: Backup configuration failed
+      ansible.builtin.set_fact:
+        patching_pre_req_validation: false
+        exec_message:
+          "{{ exec_message }}
+          Pre patching configuration could not be saved to the jumphost.\n\n
+          Aborting the patching process.\n\n"
+      when: config_backup_jh.failed
+
+  rescue:
+
+    - name: Return code generation in case of backup to jumphost failure
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5008
+        rc_message:
+          "Configuration data could not be saved to the jumphost.
+          Further investigation is required by the developer."
+
+    - name: Backup configuration failed
+      ansible.builtin.set_fact:
+        patching_pre_req_validation: false
+        exec_message:
+          "{{ exec_message }}
+          Configuration data could not be saved to the jumphost.\n\n
+          Aborting the patching process.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Pre patching configuration could not be saved to the jumphost"
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Stop Services
+  when:
+    - patching_pre_req_validation
+    - continue_execution
+  ansible.builtin.include_tasks: stop_services.yml
+
+- name: Pre check validation failed
+  when:
+    - not patching_pre_req_validation
+    - gathered_facts.unreachable is not defined
+  block:
+
+    - name: Return code generation in case of pre check validation failure
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "account"
+        rc_group: "misconfiguration"
+        rc_number: 6002
+        rc_message:
+          "Hostname: {{ inventory_hostname }}\n\n
+          {{ exec_message }}"
+        documentation: "{{ readme_url }}"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Pre check validation failed"
+      when:
+        - fail_on_error | bool
+        - not teams_notification
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Return code generation in case of pre check validation success
+  ansible.builtin.include_role:
+    name: returncode
+  vars:
+    rc_success: true
+    rc_message:
+      "Hostname: {{ inventory_hostname }}\n\n
+      {{ exec_message }}"
+  when: patching_pre_req_validation

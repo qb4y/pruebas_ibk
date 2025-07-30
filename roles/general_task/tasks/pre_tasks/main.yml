@@ -1,0 +1,219 @@
+---
+- name: Validar credenciales WinRM
+  ansible.builtin.fail:
+    msg: "Se requieren las variables 'windows_user' y 'windows_password' para conectar a Windows"
+  when:
+    - ansible_os_family == "Windows"
+    - (windows_user is not defined or windows_password is not defined)
+    - true
+  tags:
+    - validation
+    - winrm
+
+- name: Validar credenciales Linux
+  ansible.builtin.fail:
+    msg: "Se requiere la variable 'linux_user' para conectar a Linux"
+  when:
+    - ansible_os_family in ["RedHat", "Debian", "Ubuntu", "Rocky", "AlmaLinux"]
+    - linux_user is not defined
+    - true
+  tags:
+    - validation
+    - linux
+
+- name: Validar que el sistema operativo sea soportado
+  ansible.builtin.fail:
+    msg: "El sistema operativo {{ ansible_os_family }} no es soportado para esta tarea"
+  when:
+    - ansible_os_family not in ["Windows", "RedHat", "Debian", "Ubuntu", "Rocky", "AlmaLinux"]
+    - configurar_paginacion | default(false) | bool
+  tags:
+    - validation
+
+- name: Probar conectividad WinRM con Windows
+  ansible.windows.win_ping:
+  when: ansible_os_family == "Windows"
+  register: winrm_test
+  ignore_errors: true
+  tags:
+    - connectivity
+    - winrm
+
+- name: Probar conectividad SSH con Linux
+  ansible.builtin.ping:
+  when: ansible_os_family in ["RedHat", "Debian", "Ubuntu", "Rocky", "AlmaLinux"]
+  register: ssh_test
+  ignore_errors: true
+  tags:
+    - connectivity
+    - ssh
+
+- name: Fallar si no hay conectividad WinRM
+  ansible.builtin.fail:
+    msg: "{{ error_winrm | to_json }}"
+  vars:
+    error_winrm:
+      error: "No se pudo conectar al host Windows usando WinRM"
+      verificaciones_requeridas:
+        - "Credenciales (usuario: {{ ansible_user }})"
+        - "Servicio WinRM activo"
+        - "Puerto {{ ansible_port }} abierto"
+        - "Configuración de firewall"
+        - "Transporte configurado: {{ ansible_winrm_transport }}"
+  when:
+    - ansible_os_family == "Windows"
+    - winrm_test is failed
+  tags:
+    - connectivity
+    - winrm
+
+- name: Fallar si no hay conectividad SSH
+  ansible.builtin.fail:
+    msg: "{{ error_ssh | to_json }}"
+  vars:
+    error_ssh:
+      error: "No se pudo conectar al host Linux usando SSH"
+      verificaciones_requeridas:
+        - "Credenciales (usuario: {{ ansible_user }})"
+        - "Servicio SSH activo"
+        - "Puerto {{ ansible_port }} abierto"
+        - "Configuración de firewall"
+  when:
+    - ansible_os_family in ["RedHat", "Debian", "Ubuntu", "Rocky", "AlmaLinux"]
+    - ssh_test is failed
+  tags:
+    - connectivity
+    - ssh
+
+- name: Mostrar información de conexión establecida (Windows)
+  ansible.builtin.debug:
+    var: conexion_winrm_exitosa
+  vars:
+    conexion_winrm_exitosa:
+      estado: "Conexión WinRM establecida exitosamente"
+      detalles:
+        usuario: "{{ ansible_user }}"
+        transporte: "{{ ansible_winrm_transport }}"
+        puerto: "{{ ansible_port }}"
+        host: "{{ ansible_host | default(inventory_hostname) }}"
+        esquema: "{{ ansible_winrm_scheme | default('http') }}"
+  when:
+    - ansible_os_family == "Windows"
+    - winrm_test is succeeded
+  tags:
+    - connectivity
+    - winrm
+
+- name: Mostrar información de conexión establecida (Linux)
+  ansible.builtin.debug:
+    var: conexion_ssh_exitosa
+  vars:
+    conexion_ssh_exitosa:
+      estado: "Conexión SSH establecida exitosamente"
+      detalles:
+        usuario: "{{ ansible_user }}"
+        puerto: "{{ ansible_port }}"
+        host: "{{ ansible_host | default(inventory_hostname) }}"
+        metodo_become: "{{ ansible_become_method | default('sudo') }}"
+  when:
+    - ansible_os_family in ["RedHat", "Debian", "Ubuntu", "Rocky", "AlmaLinux"]
+    - ssh_test is succeeded
+  tags:
+    - connectivity
+    - ssh
+
+- name: Validar permisos de administrador (Windows)
+  ansible.windows.win_shell: |
+    $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+    $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+  register: admin_check
+  when: ansible_os_family == "Windows"
+  tags:
+    - windows
+    - permissions
+
+- name: Validar permisos sudo (Linux)
+  ansible.builtin.command: sudo -n true
+  register: sudo_check
+  ignore_errors: true
+  when:
+    - ansible_os_family in ["RedHat", "Debian", "Ubuntu", "Rocky", "AlmaLinux"]
+    - ansible_become | default(false) | bool
+  tags:
+    - linux
+    - permissions
+
+- name: Fallar si no tiene permisos de administrador (Windows)
+  ansible.builtin.fail:
+    msg: "{{ error_permisos_windows | to_json }}"
+  vars:
+    error_permisos_windows:
+      error: "Se requieren permisos de administrador para configurar la paginación"
+      usuario_actual: "{{ ansible_user }}"
+      permisos_admin: "{{ admin_check.stdout | trim | bool }}"
+      accion_requerida: "Ejecutar con usuario administrador"
+  when:
+    - ansible_os_family == "Windows"
+    - admin_check.stdout | trim | bool == false
+    - configurar_paginacion | default(false) | bool
+  tags:
+    - windows
+    - permissions
+
+- name: Fallar si no tiene permisos sudo (Linux)
+  ansible.builtin.fail:
+    msg: "{{ error_permisos_linux | to_json }}"
+  vars:
+    error_permisos_linux:
+      error: "Se requieren permisos sudo para configurar la paginación"
+      usuario_actual: "{{ ansible_user }}"
+      sudo_disponible: "{{ sudo_check.rc == 0 }}"
+      accion_requerida: "Configurar acceso sudo para el usuario"
+  when:
+    - ansible_os_family in ["RedHat", "Debian", "Ubuntu", "Rocky", "AlmaLinux"]
+    - ansible_become | default(false) | bool
+    - sudo_check.rc != 0
+    - configurar_paginacion | default(false) | bool
+  tags:
+    - linux
+    - permissions
+
+- name: Crear directorio de logs temporales (Windows)
+  ansible.windows.win_file:
+    path: "{{ windows_config.temp_log_path | default('C:\\temp\\ansible_logs') }}"
+    state: directory
+  when:
+    - ansible_os_family == "Windows"
+    - windows_config is defined
+  tags:
+    - windows
+    - setup
+
+- name: Crear directorio de logs temporales (Linux)
+  ansible.builtin.file:
+    path: "{{ linux_config.temp_log_path }}"
+    state: directory
+    mode: "0755"
+  when:
+    - ansible_os_family in ["RedHat", "Debian", "Ubuntu", "Rocky", "AlmaLinux"]
+    - linux_config is defined
+  tags:
+    - linux
+    - setup
+
+- name: Mostrar información del sistema
+  ansible.builtin.debug:
+    var: info_sistema
+  vars:
+    info_sistema:
+      hostname: "{{ ansible_hostname }}"
+      os_family: "{{ ansible_os_family }}"
+      version: "{{ ansible_distribution_version | default('N/A') }}"
+      architecture: "{{ ansible_architecture }}"
+      memory_ram: "{{ ansible_memtotal_mb | default('N/A') }} MB"
+      user_connected: "{{ ansible_user }}"
+      configure_pagination: "{{ configurar_paginacion | default(false) }}"
+      timestamp: "{{ ansible_date_time.iso8601 }}"
+  tags:
+    - system_info
+    - debug

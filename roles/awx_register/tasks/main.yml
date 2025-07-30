@@ -1,0 +1,82 @@
+---
+# ========== CONTROL PRINCIPAL AWX REGISTER ==========
+- name: 🚀 Iniciando registro AWX para servidor {{ inventory_hostname }}
+  ansible.builtin.debug:
+    msg: 
+      - "📋 Registrando servidor en AWX"
+      - "🖥️  Servidor: {{ inventory_hostname }}"
+      - "📅 Fecha: {{ ansible_date_time.date }}"
+      - "🌍 Ambiente: {{ ambiente }}"
+
+# ========== VALIDAR VARIABLES DE ENTRADA ==========
+- name: ✅ Validar variables requeridas
+  ansible.builtin.assert:
+    that:
+      - ambiente is defined and ambiente != ""
+    fail_msg: |
+      ❌ Variable requerida no está definida:
+      - ambiente: {{ ambiente | default('NO DEFINIDO') }}
+
+# ========== CONFIGURAR VARIABLES AUTOMÁTICAS ==========
+- name: 🎯 Configurar inventario y grupo automáticamente
+  ansible.builtin.set_fact:
+    inventory: "inventario de hosts"
+    group: >-
+      {%- if ansible_os_family == 'Windows' -%}
+        windows
+      {%- else -%}
+        linux
+      {%- endif -%}
+
+- name: 📋 Mostrar configuración automática
+  ansible.builtin.debug:
+    msg:
+      - "🌍 Ambiente (desde UI): {{ ambiente }}"
+      - "📦 Inventario (automático): {{ inventory }}"
+      - "👥 Grupo (por SO): {{ group }}"
+      - "🖥️  SO detectado: {{ ansible_os_family }}"
+
+# ========== CARGAR CREDENCIALES AWX DESDE VAULT ==========
+- name: 🔐 Cargar credenciales AWX desde Vault
+  ansible.builtin.include_tasks: awx_auth.yml
+
+# ========== OBTENER FACTS DEL SISTEMA ==========
+- name: 🧠 Obtener facts del sistema
+  ansible.builtin.include_tasks: facts.yml
+
+# ========== VALIDAR FACTS OBTENIDOS ==========
+- name: ✅ Validar facts recolectados
+  ansible.builtin.assert:
+    that:
+      - awx_hostname is defined and awx_hostname != ""
+      - awx_ip_address is defined and awx_ip_address != ""
+      - awx_ip_address is match("^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$")
+    fail_msg: |
+      ❌ Facts requeridos no fueron recolectados correctamente:
+      - Hostname: {{ awx_hostname | default('NO DEFINIDO') }}
+      - IP Address: {{ awx_ip_address | default('NO DEFINIDO') }}
+
+# ========== MOSTRAR RESUMEN DE DATOS ==========
+- name: 📋 Mostrar resumen de datos para registro
+  ansible.builtin.debug:
+    msg:
+      - "🏷️  Hostname: {{ awx_hostname }}"
+      - "🌐 IP Address: {{ awx_ip_address }}"
+      - "🌍 Ambiente: {{ ambiente }}"
+      - "📦 Inventario AWX: {{ inventory }}"
+      - "👥 Grupo AWX: {{ group }}"
+      - "🔗 AWX URL: {{ awx_url }}"
+
+# ========== REGISTRAR EN AWX ==========
+- name: 📤 Registrar servidor en AWX
+  ansible.builtin.include_tasks: awx_register.yml
+
+# ========== FINALIZACIÓN ==========
+- name: ✅ Registro AWX completado exitosamente
+  ansible.builtin.debug:
+    msg:
+      - "🎉 Servidor registrado exitosamente en AWX"
+      - "📦 Inventario: {{ inventory }}"
+      - "👥 Grupo: {{ group }}"
+      - "🖥️  Host: {{ awx_hostname }}"
+      - "🌐 IP: {{ awx_ip_address }}"

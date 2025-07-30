@@ -1,0 +1,607 @@
+---
+
+- name: Run pre patching steps
+  ansible.builtin.include_tasks: pre_patching_steps.yml
+
+- name: Mount NFS volume
+  ansible.builtin.include_tasks: mount_nfs.yml
+  when:
+    - disk_validation
+    - fs_space_validation
+    - continue_execution
+    - nfs_path | length > 0
+    - filesets_consistency_flag
+
+- name: Clone rootvg using free disk
+  when:
+    - filesets_consistency_flag
+    - disk_validation
+    - fs_space_validation
+    - continue_execution
+    - rootvg_backup == 'alt_disk'
+  block:
+
+    - name: Create a clone on the free disk
+      ansible.builtin.command: alt_disk_copy -d "{{ free_disk }}" -B
+      changed_when: true
+
+    - name: Free disk list
+      ansible.builtin.set_fact:
+        free_disk_list: "{{ free_disk | replace(' ', '|') }}"
+
+    - name: Verify cloning through lspv command  # noqa risky-shell-pipe
+      ansible.builtin.shell: |
+        lspv | egrep '{{ free_disk_list }}'
+      register: lspv_out
+      changed_when: false
+
+    - name: Disk cloning verification
+      ansible.builtin.set_fact:
+        disk_cloning_verification: true
+      when: "'altinst_rootvg' in lspv_out.stdout"
+
+    - name: Disk cloning successful
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          {{ root_vg_name }} has been backed up on {{ free_disk }} disk.\n\n"
+      when: disk_cloning_verification
+
+    - name: Disk cloning failed
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          {{ root_vg_name }} cloning has failed.\n\n"
+      when: not disk_cloning_verification
+
+  rescue:
+
+    - name: Return code generation in case
+            rootvg disk cloning fails
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5038
+        rc_message:
+          "{{ root_vg_name }} disk cloning has failed.
+          Further investigation is required by the developer."
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          {{ root_vg_name }} disk cloning has failed.\n\n"
+
+    - name: Unmount NFS volume
+      ansible.builtin.include_tasks: unmount_nfs.yml
+      when:
+        - nfs_path | length > 0
+        - mount_success
+        - unmount_nfs_after_patching
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Disk cloning failed"
+      when: fail_on_error | bool
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Clone rootvg using snapvx
+  when:
+    - filesets_consistency_flag
+    - disk_validation
+    - fs_space_validation
+    - continue_execution
+    - rootvg_backup == 'snapvx'
+  block:
+
+    - name: Check EMC version  # noqa risky-shell-pipe
+      ansible.builtin.shell: |
+        lslpp -l | grep "Dell EMC Solutions Enabler"
+      changed_when: false
+      failed_when: false
+      register: emc_version
+
+    - name: Get disk name mapped to rootvg  # noqa risky-shell-pipe
+      ansible.builtin.shell: |
+        lspv | grep ' {{ root_vg_name }} ' | awk '{print $1}'
+      register: rootvg_disk
+      changed_when: false
+
+    - name: Abort cloning
+      when: emc_version.rc != 0 or rootvg_disk.stdout_lines | length > 1
+      block:
+
+        - name: Return code generation in case cloning is aborted
+          ansible.builtin.include_role:
+            name: returncode
+          vars:
+            rc_support: "account"
+            rc_group: "misconfiguration"
+            rc_number: 6007
+            rc_message:
+              "{{ root_vg_name }} cloning has been aborted either because
+              correct EMC version is not installed or
+              there are multiple {{ root_vg_name }} configured on the server\n"
+
+        - name: Set exec_message
+          ansible.builtin.set_fact:
+            exec_message:
+              "{{ exec_message }}
+              {{ root_vg_name }} cloning has been aborted either because
+              correct EMC version is not installed or
+              there are multiple {{ root_vg_name }}
+              configured on the server.\n\n"
+
+        - name: Unmount NFS volume
+          ansible.builtin.include_tasks: unmount_nfs.yml
+          when:
+            - nfs_path | length > 0
+            - mount_success
+            - unmount_nfs_after_patching
+
+        - name: Send communication
+          ansible.builtin.include_tasks: send_notification.yml
+
+        - name: Remove lock file
+          ansible.builtin.file:
+            path:
+              /etc/ansible/facts.d{{
+              '' if lock_file_dir.changed else '/unix_patching.fact' }}
+            state: absent
+
+        - name: End the job for the host {{ inventory_hostname }}
+          ansible.builtin.fail:
+            msg: "Cloning aborted"
+          when: fail_on_error | bool
+
+        - name: Set continue_execution flag
+          ansible.builtin.set_fact:
+            continue_execution: false
+
+    - name: Perform cloning
+      when:
+        - emc_version.rc == 0
+        - rootvg_disk.stdout_lines | length == 1
+        - continue_execution
+      block:
+
+        - name: Fetch the lun ID  # noqa risky-shell-pipe
+          ansible.builtin.shell: |
+            lsmpio -ql {{ rootvg_disk.stdout }} | grep "Volume Serial"
+            | awk '{print $3}'
+          changed_when: false
+          register: lun_id
+
+        - name: Fetch powermax array
+          ansible.builtin.set_fact:
+            powermax_array: "{{ lun_id.stdout[16:20] }}"
+
+        - name: Fetch Device Symmetrix Name  # noqa risky-shell-pipe
+          ansible.builtin.shell: |
+            cd /opt/emc/SYMCLI/bin;
+            ./symdev -sid {{ powermax_array }} show -wwn {{ lun_id.stdout }}
+            | grep "Device Symmetrix Name" | awk '{print $5}';
+          changed_when: false
+          register: device_name
+
+        - name: Take backup
+          ansible.builtin.shell: >
+            cd /opt/emc/SYMCLI/bin;
+            ./symsnapvx -sid {{ powermax_array }} -dev {{ device_name.stdout }}
+            -name vaix_{{ inventory_hostname_short }}_{{ tower_job_id }}
+            establish -ttl -delta 14 -nop;
+          register: snapvx_backup
+          changed_when: true
+
+        - name: Validate the backup  # noqa risky-shell-pipe
+          ansible.builtin.shell: |
+            cd /opt/emc/SYMCLI/bin;
+            ./symsnapvx -sid {{ powermax_array }}
+            -dev {{ device_name.stdout }} list -detail
+            | grep {{ device_name.stdout }} | awk '{print $4}';
+          changed_when: false
+          register: backup_validation
+
+        - name: Disk cloning verification
+          ansible.builtin.set_fact:
+            disk_cloning_verification: true
+          when:
+            - "'operation successfully executed' in snapvx_backup.stdout"
+            - "'X' not in backup_validation.stdout"
+
+        - name: Disk cloning successful
+          ansible.builtin.set_fact:
+            exec_message:
+              "{{ exec_message }}
+              {{ root_vg_name }} has been backed up successfully
+              using snapvx.\n\n"
+          when: disk_cloning_verification
+
+        - name: Disk cloning failed
+          ansible.builtin.set_fact:
+            exec_message:
+              "{{ exec_message }}
+              {{ root_vg_name }} cloning has failed.\n\n"
+          when: not disk_cloning_verification
+
+  rescue:
+
+    - name: Return code generation in case
+            rootvg disk cloning fails
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5038
+        rc_message:
+          "{{ root_vg_name }} disk cloning has failed.
+          Further investigation is required by the developer."
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          {{ root_vg_name }} disk cloning has failed.\n\n"
+
+    - name: Unmount NFS volume
+      ansible.builtin.include_tasks: unmount_nfs.yml
+      when:
+        - nfs_path | length > 0
+        - mount_success
+        - unmount_nfs_after_patching
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Disk cloning failed"
+      when: fail_on_error | bool
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Raise exception if disk cloning fails
+  when:
+    - not disk_cloning_verification
+    - filesets_consistency_flag
+    - disk_validation
+    - fs_space_validation
+    - continue_execution
+  block:
+
+    - name: Return code generation in case
+            rootvg disk cloning fails
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5038
+        rc_message:
+          "{{ root_vg_name }} disk cloning has failed.
+          Further investigation is required by the developer."
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          {{ root_vg_name }} disk cloning has failed.\n\n"
+
+    - name: Unmount NFS volume
+      ansible.builtin.include_tasks: unmount_nfs.yml
+      when:
+        - nfs_path | length > 0
+        - mount_success
+        - unmount_nfs_after_patching
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Disk cloning failed"
+      when: fail_on_error | bool
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Remove locking efixes
+  when:
+    - remove_locking_efixes
+    - filesets_consistency_flag
+    - disk_validation
+    - fs_space_validation
+    - continue_execution
+  block:
+
+    - name: Check if any efix is locking any filesets  # noqa risky-shell-pipe
+      ansible.builtin.shell: |
+        emgr -P | tail -n +4 | awk '{print $3}' | sort -u
+      register: locking_efix
+      changed_when: false
+
+    - name: Uninstall locking efix
+      ansible.builtin.command: /usr/sbin/emgr -r -L {{ item }}
+      loop: "{{ locking_efix.stdout_lines }}"
+      when: locking_efix.stdout
+      changed_when: true
+
+    - name: Locking efix uninstalled successfully
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Below locking efix have been uninstalled successfully:\n\n
+          {{ locking_efix.stdout_lines }}\n\n"
+      when: locking_efix.stdout
+
+  rescue:
+
+    - name:
+        Return code generation in case of
+        uninstall locking efix command failure
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5024
+        rc_message:
+          "Uninstall locking efix command has failed.
+          Further investigation is required by the developer."
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Uninstall locking efix command has failed.\n\n
+          Aborting the patching process.\n\n"
+
+    - name: Unmount NFS volume
+      ansible.builtin.include_tasks: unmount_nfs.yml
+      when:
+        - nfs_path | length > 0
+        - mount_success
+        - unmount_nfs_after_patching
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Uninstall locking efix command failed"
+      when: fail_on_error | bool
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Update the OS
+  when:
+    - filesets_consistency_flag
+    - disk_validation
+    - fs_space_validation
+    - continue_execution
+    - disk_cloning_verification
+  block:
+
+    - name: Update the OS
+      ansible.builtin.command:
+        install_all_updates -Y -cd {{ patching_filesets_location }}
+      changed_when: true
+
+    - name: Verify the OS update
+      ansible.builtin.command: tail -10 /var/adm/ras/install_all_updates.log
+      register: update_log_out
+      changed_when: false
+
+    - name: Get OS level
+      ansible.builtin.command: oslevel -s
+      register: post_patch_oslevel
+      changed_when: false
+
+    - name: OS update verification
+      ansible.builtin.set_fact:
+        os_update_verification: true
+      when: "'install_all_updates: Result = SUCCESS'
+            in update_log_out.stdout_lines"
+
+    - name: OS update successful
+      when: os_update_verification
+      block:
+
+        - name: Set exec_message
+          ansible.builtin.set_fact:
+            exec_message:
+              "{{ exec_message }}
+              OS update has been successful.\n\n"
+
+        - name: Set returncode
+          ansible.builtin.include_role:
+            name: returncode
+          vars:
+            rc_success: true
+
+    - name: OS update failed
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          OS update has failed.\n\n"
+      when: not os_update_verification
+
+  rescue:
+
+    - name: Return code generation in case
+            committing filesets in the applied state fails
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5025
+        rc_message:
+          "OS update has failed.
+          Further investigation is required by the developer."
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          OS update has failed.\n\n"
+
+    - name: Unmount NFS volume
+      ansible.builtin.include_tasks: unmount_nfs.yml
+      when:
+        - nfs_path | length > 0
+        - mount_success
+        - unmount_nfs_after_patching
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "OS update failed"
+      when: fail_on_error | bool
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Apply efixes
+  when:
+    - efix_filesets_location | length
+    - fs_space_validation
+    - continue_execution
+  block:
+
+    - name: Fetch list of efixes to be applied
+      ansible.builtin.find:
+        paths: "{{ efix_filesets_location }}"
+        patterns: "*epkg.Z"
+      register: efix_list
+      changed_when: false
+
+    - name: Create a list of efixes
+      ansible.builtin.set_fact:
+        efix_list:
+          "{{ efix_list.files | map(attribute='path') | list }}"
+
+    - name: Apply efixes
+      ansible.builtin.command:
+        emgr -e {{ item }}
+      loop: "{{ efix_list }}"
+      changed_when: true
+      when: efix_list | length > 0
+
+    - name: Applying efixes successful
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Successfully applied below efixes:\n\n
+          {{ efix_list }}\n\n"
+      when: efix_list | length > 0
+
+  rescue:
+
+    - name:
+        Return code generation in case of
+        applying efixes fails
+      ansible.builtin.include_role:
+        name: returncode
+      vars:
+        rc_support: "developer"
+        rc_group: "component_playbook"
+        rc_number: 5040
+        rc_message:
+          "Applying efixes has failed.
+          Further investigation is required by the developer"
+
+    - name: Set exec_message
+      ansible.builtin.set_fact:
+        exec_message:
+          "{{ exec_message }}
+          Applying efixes has failed.\n\n
+          Aborting the patching process.\n\n"
+
+    - name: Send communication
+      ansible.builtin.include_tasks: send_notification.yml
+
+    - name: Remove lock file
+      ansible.builtin.file:
+        path:
+          /etc/ansible/facts.d{{
+          '' if lock_file_dir.changed else '/unix_patching.fact' }}
+        state: absent
+
+    - name: End the job for the host {{ inventory_hostname }}
+      ansible.builtin.fail:
+        msg: "Applying efixes failed"
+      when: fail_on_error | bool
+
+    - name: Set continue_execution flag
+      ansible.builtin.set_fact:
+        continue_execution: false
+
+- name: Run post patching steps
+  ansible.builtin.include_tasks: post_patching_steps.yml
+  when:
+    - filesets_consistency_flag
+    - disk_validation
+    - fs_space_validation
+    - continue_execution
+    - disk_cloning_verification
+    - os_update_verification
+
+- name: Unmount NFS volume
+  ansible.builtin.include_tasks: unmount_nfs.yml
+  when:
+    - nfs_path | length > 0
+    - mount_success
+    - unmount_nfs_after_patching

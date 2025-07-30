@@ -1,0 +1,60 @@
+---
+
+- name: 🧪 Verificar que el sistema operativo sea Windows
+  ansible.builtin.assert:
+    that:
+      - ansible_os_family == "Windows"
+    fail_msg: "❌ Este rol solo puede ejecutarse en sistemas Windows."
+    success_msg: "✅ Sistema operativo compatible: {{ ansible_os_family }}"
+
+- name: 🧪 Verificar existencia de PowerShell
+  ansible.windows.win_command: powershell -Command "$PSVersionTable.PSVersion"
+  register: ps_check
+  failed_when: ps_check.rc != 0
+  changed_when: false
+
+- name: ✅ Mostrar versión de PowerShell
+  ansible.builtin.debug:
+    msg: "Versión de PowerShell: {{ ps_check.stdout_lines | join(' ') }}"
+
+- name: 🔍 Validar que no exista ya una instalación previa
+  ansible.windows.win_stat:
+    path: 'C:\\Program Files (x86)\\Nimsoft\\robot\\robot.exe'
+  register: nimsoft_installed
+
+- name: 🚫 Abortar si ya está instalado
+  ansible.builtin.fail:
+    msg: "⚠️ Ya existe una instalación de Nimsoft Robot. Revisa si deseas reinstalar."
+  when: nimsoft_installed.stat.exists
+
+- name: 🧪 Verificar conectividad real a MinIO usando GET sin contenido
+  ansible.windows.win_uri:
+    url: "{{ uim_installer_url }}"
+    method: GET
+    return_content: no
+  register: minio_check
+  failed_when: minio_check.status_code != 200
+  retries: 3
+  delay: 5
+  until: minio_check.status_code == 200
+
+- name: ✅ Acceso a MinIO validado correctamente
+  ansible.builtin.debug:
+    msg: "📦 El instalador fue encontrado correctamente en MinIO: {{ uim_installer_url }}"
+
+- name: ✅ Verificar que las variables críticas estén definidas
+  ansible.builtin.assert:
+    that:
+      - DOMAIN is defined
+      - ROBOTIP is defined
+      - ROBOTNAME is defined
+      - HUBIP is defined
+      - HUBPORT is defined
+      - FIRST_PROBE_PORT is defined
+      - uim_installer_url is defined
+    fail_msg: "❌ Faltan variables necesarias para la instalación de Nimsoft Robot."
+
+- name: 🔒 Congelar URL pre-firmada para todo el rol
+  ansible.builtin.set_fact:
+    uim_installer_url_final: "{{ uim_installer_url }}"
+  run_once: true

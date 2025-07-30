@@ -1,0 +1,62 @@
+---
+- name: "DEBUG vcenter_credentials"
+  ansible.builtin.debug:
+    var: vcenter_credentials
+
+- name: "Validar conectividad con vCenter"
+  community.vmware.vmware_about_info:
+    hostname: "{{ vcenter_credentials.hostname }}"
+    username: "{{ vcenter_credentials.username }}"
+    password: "{{ vcenter_credentials.password }}"
+    validate_certs: false
+  register: vcenter_info
+  tags: [common]
+
+- name: "Verificar estado de vCenter"
+  ansible.builtin.assert:
+    that:
+      - vcenter_info is succeeded
+      - vcenter_info.about_info is defined
+    fail_msg: "No se puede conectar a vCenter {{ vcenter_credentials.hostname }}"
+    success_msg: "Conexión a vCenter exitosa"
+  tags: [common]
+
+- name: "Verificar existencia del datacenter"
+  community.vmware.vmware_datacenter_info:
+    hostname: "{{ vcenter_credentials.hostname }}"
+    username: "{{ vcenter_credentials.username }}"
+    password: "{{ vcenter_credentials.password }}"
+    validate_certs: false
+    datacenter: "{{ datacenter }}"
+  register: datacenter_info
+  tags: [common]
+
+- name: "Validar datacenter existe"
+  ansible.builtin.assert:
+    that:
+      - datacenter_info.datacenter_info is defined
+      - datacenter_info.datacenter_info | length > 0
+    fail_msg: "Datacenter {{ datacenter }} no encontrado"
+    success_msg: "Datacenter validado exitosamente"
+  tags: [common]
+
+- name: "Verificar disponibilidad de IP (ping test)"
+  ansible.builtin.shell: "ping -c 2 -W 3 {{ vm_nics[0].vm_ip_address }}"
+  register: ip_ping_test
+  failed_when: ip_ping_test.rc == 0
+  ignore_errors: true
+  when:
+    - vm_nics is defined
+    - vm_nics | length > 0
+    - vm_nics[0].vm_ip_address is defined
+  tags: [common, network]
+
+- name: "Resultado validación IP"
+  ansible.builtin.debug:
+    msg:
+      - "IP {{ vm_nics[0].vm_ip_address }} está {{ 'OCUPADA' if ip_ping_test.rc == 0 else 'DISPONIBLE' }}"
+  when:
+    - vm_nics is defined
+    - vm_nics | length > 0
+    - vm_nics[0].vm_ip_address is defined
+  tags: [common, network]

@@ -1,0 +1,187 @@
+---
+# ===============================================================================
+# HANDLERS: Notificaciones y Acciones del Aprovisionamiento
+# ===============================================================================
+# Descripción: Handlers para manejar notificaciones y acciones posteriores
+# durante el proceso de aprovisionamiento de VMs
+# ===============================================================================
+
+- name: "Notificar VM creada exitosamente"
+  ansible.builtin.debug:
+    msg:
+      - "🎉 NOTIFICACIÓN: VM CREADA EXITOSAMENTE"
+      - "VM: {{ vm_config.name if vm_config is defined else vm_name }}"
+      - "IP: {{ vm_creada_info.ip_asignada if vm_creada_info is defined else 'Pendiente' }}"
+      - "Template: {{ vm_config.template if vm_config is defined else vm_template }}"
+      - "Timestamp: {{ ansible_date_time.iso8601 }}"
+      - "Estado: Creación completada, continuando con configuración..."
+  tags: [handlers, notification, vm_creation]
+
+- name: "Notificar red configurada exitosamente"
+  ansible.builtin.debug:
+    msg:
+      - "🌐 NOTIFICACIÓN: RED CONFIGURADA EXITOSAMENTE"
+      - "VM: {{ vm_config.name if vm_config is defined else vm_name }}"
+      - "IP configurada: {{ network_final_config.ip if network_final_config is defined else 'No determinada' }}"
+      - "Red: {{ network_final_config.network_name if network_final_config is defined else vm_networks[0].name }}"
+      - "Gateway: {{ network_final_config.gateway if network_final_config is defined else vm_networks[0].gateway }}"
+      - "DNS: {{ network_final_config.dns_servers | join(', ') if network_final_config is defined else vm_networks[0].dns_servers | join(', ') }}"
+      - "Estado: Red estática configurada correctamente"
+  tags: [handlers, notification, network_config]
+
+- name: "Notificar unión al dominio exitosa"
+  ansible.builtin.debug:
+    msg:
+      - "🏢 NOTIFICACIÓN: UNIÓN AL DOMINIO EXITOSA"
+      - "VM: {{ vm_config.name if vm_config is defined else vm_name }}"
+      - "Dominio: {{ domain_configuration.domain if domain_configuration is defined else 'grupoib.local' }}"
+      - "Usuario admin: {{ domain_configuration.domain_admin if domain_configuration is defined else 'slu000' }}"
+      - "DNS: {{ domain_configuration.dns_servers | join(', ') if domain_configuration is defined else '10.11.1.10, 10.11.1.11' }}"
+      - "Timestamp: {{ domain_configuration.join_timestamp if domain_configuration is defined else ansible_date_time.iso8601 }}"
+      - "Estado: VM integrada exitosamente al dominio corporativo"
+  tags: [handlers, notification, domain_join]
+
+- name: "Notificar reporte generado"
+  ansible.builtin.debug:
+    msg:
+      - "📋 NOTIFICACIÓN: REPORTE FINAL GENERADO"
+      - "VM: {{ reporte_final_aprovisionamiento.vm_informacion.nombre if reporte_final_aprovisionamiento is defined else vm_name }}"
+      - "Resultado: {{ reporte_final_aprovisionamiento.resumen_ejecutivo.resultado if reporte_final_aprovisionamiento is defined else 'No determinado' }}"
+      - "Puntuación: {{ reporte_final_aprovisionamiento.estado_final.puntuacion_general if reporte_final_aprovisionamiento is defined else 0 }}%"
+      - "Estado: {{ reporte_final_aprovisionamiento.estado_final.estado_general if reporte_final_aprovisionamiento is defined else 'UNKNOWN' }}"
+      - "VM Lista: {{ 'SÍ' if (reporte_final_aprovisionamiento.resumen_ejecutivo.vm_lista_para_uso if reporte_final_aprovisionamiento is defined else false) else 'NO' }}"
+      - "Timestamp: {{ reporte_timestamp if reporte_timestamp is defined else ansible_date_time.iso8601 }}"
+  tags: [handlers, notification, report_generated]
+
+- name: "Enviar notificación por email (si está configurado)"
+  ansible.builtin.mail:
+    to: "{{ notification_email_recipients | default([]) }}"
+    subject: "Aprovisionamiento VM {{ vm_config.name if vm_config is defined else vm_name }} - {{ reporte_final_aprovisionamiento.resumen_ejecutivo.resultado if reporte_final_aprovisionamiento is defined else 'Estado desconocido' }}"
+    body: |
+      Estimado equipo,
+
+      El aprovisionamiento de la VM {{ vm_config.name if vm_config is defined else vm_name }} ha sido completado.
+
+      RESUMEN:
+      - VM: {{ vm_config.name if vm_config is defined else vm_name }}
+      - IP: {{ reporte_final_aprovisionamiento.vm_informacion.ip_asignada if reporte_final_aprovisionamiento is defined else 'No determinada' }}
+      - Resultado: {{ reporte_final_aprovisionamiento.resumen_ejecutivo.resultado if reporte_final_aprovisionamiento is defined else 'No determinado' }}
+      - Estado: {{ reporte_final_aprovisionamiento.estado_final.estado_general if reporte_final_aprovisionamiento is defined else 'UNKNOWN' }}
+      - Puntuación de conectividad: {{ reporte_final_aprovisionamiento.estado_final.puntuacion_general if reporte_final_aprovisionamiento is defined else 0 }}%
+
+      CONFIGURACIÓN:
+      - Template: {{ vm_config.template if vm_config is defined else vm_template }}
+      - Datacenter: {{ vm_config.datacenter if vm_config is defined else vm_datacenter }}
+      - Cluster: {{ vm_config.cluster if vm_config is defined else vm_cluster }}
+      - Red: {{ vm_networks[0].name }}
+      - Dominio: grupoib.local
+
+      VM lista para uso: {{ 'SÍ' if (reporte_final_aprovisionamiento.resumen_ejecutivo.vm_lista_para_uso if reporte_final_aprovisionamiento is defined else false) else 'NO' }}
+
+      {% if reporte_final_aprovisionamiento is defined and reporte_final_aprovisionamiento.resumen_ejecutivo.acciones_requeridas | length > 0 %}
+      ACCIONES REQUERIDAS:
+      {% for accion in reporte_final_aprovisionamiento.resumen_ejecutivo.acciones_requeridas %}
+      - {{ accion }}
+      {% endfor %}
+      {% endif %}
+
+      Timestamp: {{ ansible_date_time.iso8601 }}
+      Generado por: Ansible Automation Platform
+
+      Saludos,
+      Sistema de Aprovisionamiento Automatizado
+    charset: utf-8
+  when:
+    - notification_email_recipients is defined
+    - notification_email_recipients | length > 0
+    - enable_email_notifications | default(false)
+  ignore_errors: true
+  tags: [handlers, notification, email]
+
+- name: "Notificar a webhook (si está configurado)"
+  ansible.builtin.uri:
+    url: "{{ notification_webhook_url }}"
+    method: POST
+    body_format: json
+    body:
+      timestamp: "{{ ansible_date_time.iso8601 }}"
+      event_type: "vm_provisioning_completed"
+      vm_name: "{{ vm_config.name if vm_config is defined else vm_name }}"
+      vm_ip: "{{ reporte_final_aprovisionamiento.vm_informacion.ip_asignada if reporte_final_aprovisionamiento is defined else 'No determinada' }}"
+      result: "{{ reporte_final_aprovisionamiento.resumen_ejecutivo.resultado if reporte_final_aprovisionamiento is defined else 'No determinado' }}"
+      status: "{{ reporte_final_aprovisionamiento.estado_final.estado_general if reporte_final_aprovisionamiento is defined else 'UNKNOWN' }}"
+      score: "{{ reporte_final_aprovisionamiento.estado_final.puntuacion_general if reporte_final_aprovisionamiento is defined else 0 }}"
+      vm_ready: "{{ reporte_final_aprovisionamiento.resumen_ejecutivo.vm_lista_para_uso if reporte_final_aprovisionamiento is defined else false }}"
+      template_used: "{{ vm_config.template if vm_config is defined else vm_template }}"
+      datacenter: "{{ vm_config.datacenter if vm_config is defined else vm_datacenter }}"
+      cluster: "{{ vm_config.cluster if vm_config is defined else vm_cluster }}"
+      network: "{{ vm_networks[0].name }}"
+      domain: "grupoib.local"
+      actions_required: "{{ reporte_final_aprovisionamiento.resumen_ejecutivo.acciones_requeridas if reporte_final_aprovisionamiento is defined else [] }}"
+      method: "independent_configuration"
+      automation_platform: "ansible"
+      control_node: "{{ ansible_hostname }}"
+    headers:
+      Content-Type: "application/json"
+      User-Agent: "Ansible-VM-Provisioning/2.0"
+    status_code: [200, 201, 202]
+    timeout: 30
+  when:
+    - notification_webhook_url is defined
+    - notification_webhook_url != ""
+    - enable_webhook_notifications | default(false)
+  ignore_errors: true
+  tags: [handlers, notification, webhook]
+
+- name: "Registrar en syslog"
+  ansible.builtin.syslogger:
+    msg: "VM Provisioning: {{ vm_config.name if vm_config is defined else vm_name }} - Result: {{ reporte_final_aprovisionamiento.resumen_ejecutivo.resultado if reporte_final_aprovisionamiento is defined else 'No determinado' }} - IP: {{ reporte_final_aprovisionamiento.vm_informacion.ip_asignada if reporte_final_aprovisionamiento is defined else 'No determinada' }} - Score: {{ reporte_final_aprovisionamiento.estado_final.puntuacion_general if reporte_final_aprovisionamiento is defined else 0 }}%"
+    priority: "{{ 'info' if (reporte_final_aprovisionamiento.resumen_ejecutivo.resultado if reporte_final_aprovisionamiento is defined else 'EXITOSO') == 'EXITOSO' else 'warning' }}"
+    facility: "daemon"
+    tag: "ansible-vm-provisioning"
+  ignore_errors: true
+  tags: [handlers, notification, syslog]
+
+- name: "Actualizar inventario dinámico (si está habilitado)"
+  ansible.builtin.add_host:
+    name: "{{ vm_config.name if vm_config is defined else vm_name }}"
+    ansible_host: "{{ reporte_final_aprovisionamiento.vm_informacion.ip_asignada if reporte_final_aprovisionamiento is defined else vm_networks[0].ip }}"
+    groups:
+      - "provisioned_vms"
+      - "aprovisionadas_ansible"
+      - "{{ vm_datacenter | lower | regex_replace('-', '_') }}"
+      - "{{ vm_cluster | lower | regex_replace('-', '_') }}"
+    vm_created_timestamp: "{{ ansible_date_time.iso8601 }}"
+    vm_template_used: "{{ vm_config.template if vm_config is defined else vm_template }}"
+    vm_provisioning_method: "independent_configuration"
+    vm_domain: "grupoib.local"
+    vm_status: "{{ reporte_final_aprovisionamiento.estado_final.estado_general if reporte_final_aprovisionamiento is defined else 'UNKNOWN' }}"
+    vm_ready: "{{ reporte_final_aprovisionamiento.resumen_ejecutivo.vm_lista_para_uso if reporte_final_aprovisionamiento is defined else false }}"
+  when:
+    - update_dynamic_inventory | default(false)
+    - reporte_final_aprovisionamiento is defined
+    - reporte_final_aprovisionamiento.vm_informacion.ip_asignada != "No determinada"
+  ignore_errors: true
+  tags: [handlers, inventory, dynamic_update]
+
+- name: "Limpiar archivos temporales (si existen)"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "/tmp/vm_provisioning_{{ vm_config.name if vm_config is defined else vm_name }}.log"
+    - "/tmp/ansible_vm_temp_{{ vm_config.name if vm_config is defined else vm_name }}"
+  ignore_errors: true
+  when: cleanup_temp_files | default(true)
+  tags: [handlers, cleanup, temp_files]
+
+- name: "Notificación final de cleanup completado"
+  ansible.builtin.debug:
+    msg:
+      - "🧹 CLEANUP COMPLETADO"
+      - "Archivos temporales eliminados"
+      - "Notificaciones enviadas"
+      - "Inventario actualizado (si está habilitado)"
+      - "Proceso de aprovisionamiento finalizado completamente"
+      - "VM {{ vm_config.name if vm_config is defined else vm_name }} lista para uso"
+  tags: [handlers, cleanup, final_notification]

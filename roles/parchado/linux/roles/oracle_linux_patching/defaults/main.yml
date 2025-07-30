@@ -1,0 +1,8 @@
+---
+yum_exclude_patch_list: ''
+patch_type: 'update_all'
+change_number: ''
+fail_on_error: true
+async_value: 0
+poll_value: 15
+run_patch_scan: false

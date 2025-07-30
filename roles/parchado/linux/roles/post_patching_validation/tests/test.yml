@@ -1,0 +1,6 @@
+---
+- name: Testing
+  hosts: localhost
+  remote_user: root
+  roles:
+    - post_patching_validation

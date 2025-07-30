@@ -1,0 +1,90 @@
+---
+- name: IaC Provisioning Router (AWX)
+  hosts: "{{ vm_ip | default('localhost') }}"
+  gather_facts: true
+  become: false
+  vars:
+    valid_actions:
+      - validate_capacity
+      - deploy_nessus
+      - general_task
+      - registry_vm
+      - crowstrike_agent
+      - minio_ansible_automation
+      - vault_core
+      - provisioning
+      - crear_usuarios
+      - install_uim_agent
+      - awx_register
+      - rcp_register
+
+  pre_tasks:
+    - name: Validar que se haya definido una acción
+      ansible.builtin.fail:
+        msg: "Debes definir una variable 'action'. Ejemplo: -e action=deploy_nessus"
+      when: action is not defined
+
+    - name: Validar que la acción es válida
+      ansible.builtin.fail:
+        msg: "Acción '{{ action }}' no es válida. Opciones válidas: {{ valid_actions | join(', ') }}"
+      when: action not in valid_actions
+  tasks:
+    - name: Ejecutar validacion de capacidades
+      ansible.builtin.include_role:
+        name: vmware_provisioning
+        apply:
+          tags:
+            - validation
+      when: action == 'validate_capacity'
+
+    - name: Ejecutar rol de Aprovisionamiento
+      ansible.builtin.include_role:
+        name: ansible_provisioning_role
+      when: action == 'provisioning'
+      register: r_provisioning
+
+    - name: show vm details
+      ansible.builtin.debug:
+        msg: "{{ r_provisioning }}"
+
+    - name: Creando artefactos AWX
+      ansible.builtin.set_stats:
+        data:
+          vm_ip: ansible_provisioning_role
+      when: action == 'provisioning'
+
+    - name: Ejecutar rol de General Tasks
+      ansible.builtin.include_role:
+        name: general_task
+      when: action == 'general_task'
+
+    - name: Ejecutar instalación de Nessus
+      ansible.builtin.include_role:
+        name: deploy_nessus
+      when: action == 'deploy_nessus'
+
+    - name: Ejecutar instalación de Crowdstrike
+      ansible.builtin.include_role:
+        name: crowdstrike
+      when: action == 'crowstrike_agent'
+
+    - name: Ejecutar creación de usuarios y grupos
+      ansible.builtin.include_role:
+        name: crear_usuarios
+      when: action == 'crear_usuarios'
+
+    - name: Ejecutar instalacion de UIM
+      ansible.builtin.include_role:
+        name: install_uim_agent
+      when: action == 'install_uim_agent'
+
+    - name: Ejecutar registro de VM en AWX
+      ansible.builtin.include_role:
+        name: awx_register
+      when: action == 'awx_register'
+    
+    - name: Ejecutar registro de VM en RCP
+      ansible.builtin.include_role:
+        name: rcp_register
+      when: action == 'rcp_register'
+

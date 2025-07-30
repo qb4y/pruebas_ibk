@@ -1,0 +1,93 @@
+---
+# ROL DE APROVISIONAMIENTO - MODULARIZADO CON REDIRECCIÓN POR OS
+# ===============================================================
+# Usa: pre_tasks_dispatcher → tasks por OS → post_tasks_dispatcher
+
+- name: "Validar variables requeridas"
+  ansible.builtin.assert:
+    that:
+      - vcenter_hostname is defined
+      - vcenter_username is defined
+      - vcenter_password is defined
+      - vm_hostname is defined
+      - datacenter is defined
+      - vm_ostype is defined
+      - vm_ostype in ['windows', 'linux']
+    fail_msg: "Variables requeridas no definidas o vm_ostype debe ser 'windows' o 'linux'"
+  tags: [always]
+
+- name: "Establecer credenciales de vCenter"
+  ansible.builtin.set_fact:
+    vcenter_credentials:
+      hostname: "{{ vcenter_hostname }}"
+      username: "{{ vcenter_username }}"
+      password: "{{ vcenter_password }}"
+      validate_certs: "{{ validate_certs | default(false) }}"
+      datacenter: "{{ datacenter }}"
+  tags: [always]
+
+- name: "Establecer configuración de VM"
+  ansible.builtin.set_fact:
+    vm_config:
+      name: "{{ vm_hostname }}"
+      datacenter: "{{ datacenter }}"
+      folder: "{{ folder | default('') }}"
+      cluster: "{{ cluster | default('') }}"
+      datastore: "{{ datastore }}"
+      template: "{{ vm_template }}"
+  tags: [always]
+
+- name: "Validar operaciones habilitadas"
+  ansible.builtin.set_fact:
+    operaciones_validas: "{{ operaciones_habilitadas | default(['crearVm']) }}"
+  tags: [always]
+
+- name: "Determinar sistema operativo"
+  ansible.builtin.set_fact:
+    es_windows: "{{ vm_ostype == 'windows' }}"
+    es_linux: "{{ vm_ostype == 'linux' }}"
+  tags: [always, os_detection]
+
+# ============================================
+# WORKFLOW MODULARIZADO POR OS
+# ============================================
+
+- name: "Validar conexión vCenter"
+  ansible.builtin.include_tasks: common/validar_conexion.yml
+  when: "'crearVm' in operaciones_validas or 'vmGetInfo' in operaciones_validas"
+  tags: [validacion]
+
+- name: "Eliminar VM existente (si existe)"
+  ansible.builtin.include_tasks: common/eliminar_vm.yml
+  when: "'vm_delete' in operaciones_validas"
+  tags: [eliminar_vm]
+
+- name: "Crear VM Windows (modularizado)"
+  ansible.builtin.include_tasks: windows/crear_vm_template_optimizado.yml
+  when:
+    - "'crearVm' in operaciones_validas"
+    - es_windows
+  tags: [crear_vm, windows]
+
+- name: "Crear VM Linux (modularizado)"
+  ansible.builtin.include_tasks: linux/crear_vm_linux.yml
+  when:
+    - "'crearVm' in operaciones_validas"
+    - es_linux
+  tags: [crear_vm, linux]
+
+- name: "Obtener información completa de VM"
+  ansible.builtin.include_tasks: common/obtener_info.yml
+  when: "'vmGetInfo' in operaciones_validas"
+  tags: [obtener_info]
+
+- name: "Resumen final"
+  ansible.builtin.debug:
+    msg:
+      - "✅ APROVISIONAMIENTO {{ vm_ostype | upper }} COMPLETADO"
+      - "VM: {{ vm_hostname }} → {{ vm_hostname | regex_replace('_', '') }}"
+      - "IP: {{ vm_nics[0].vm_ip_address }}"
+      - "Template: {{ vm_template }}"
+      - "OS: {{ vm_ostype }}"
+      - "Operaciones: {{ operaciones_validas | join(', ') }}"
+  tags: [resumen]

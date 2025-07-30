@@ -1,0 +1,294 @@
+---
+# ========== REGISTRO EN AWX ==========
+- name: 📤 Iniciando proceso de registro en AWX
+  ansible.builtin.debug:
+    msg:
+      - "🎯 Registrando host en AWX"
+      - "📦 Inventario: {{ inventory }}"
+      - "👥 Grupo: {{ group }}"
+      - "🖥️  Host: {{ awx_hostname }}"
+      - "🌐 IP: {{ awx_ip_address }}"
+
+# ========== VERIFICAR/CREAR INVENTARIO ==========
+- name: 🔍 Verificar si el inventario '{{ inventory }}' existe en AWX
+  ansible.builtin.uri:
+    url: "{{ awx_url }}/api/v2/inventories/?name={{ inventory | urlencode }}"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ awx_token }}"
+    validate_certs: "{{ awx_verify_ssl }}"
+    timeout: "{{ awx_timeout }}"
+    status_code: 200
+  register: inventory_check
+  delegate_to: localhost
+
+- name: 🆕 Crear inventario '{{ inventory }}' si no existe
+  ansible.builtin.uri:
+    url: "{{ awx_url }}/api/v2/inventories/"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ awx_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      name: "{{ inventory }}"
+      description: "Inventario creado automáticamente para hosts registrados"
+      organization: 1  # Asumiendo organización por defecto
+    validate_certs: "{{ awx_verify_ssl }}"
+    timeout: "{{ awx_timeout }}"
+    status_code: 201
+  register: inventory_creation
+  delegate_to: localhost
+  when: inventory_check.json.count == 0
+
+- name: ✅ Confirmar inventario disponible
+  ansible.builtin.set_fact:
+    inventory_id: >-
+      {{
+        inventory_check.json.results[0].id if inventory_check.json.count > 0
+        else inventory_creation.json.id
+      }}
+  delegate_to: localhost
+
+- name: 📋 Mostrar información del inventario
+  ansible.builtin.debug:
+    msg:
+      - "✅ Inventario: {{ inventory }}"
+      - "🆔 ID del inventario: {{ inventory_id }}"
+      - "🔄 Acción: {{ 'Encontrado' if inventory_check.json.count > 0 else 'Creado' }}"
+  delegate_to: localhost
+
+# ========== VERIFICAR SI EL HOST YA EXISTE ==========
+- name: 🔍 Verificar si el host '{{ awx_hostname }}' ya existe en el inventario
+  ansible.builtin.uri:
+    url: "{{ awx_url }}/api/v2/inventories/{{ inventory_id }}/hosts/?name={{ awx_hostname | urlencode }}"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ awx_token }}"
+    validate_certs: "{{ awx_verify_ssl }}"
+    timeout: "{{ awx_timeout }}"
+    status_code: 200
+  register: host_check
+  delegate_to: localhost
+
+# ========== CREAR O ACTUALIZAR HOST ==========
+- name: 🆕 Crear nuevo host en AWX
+  ansible.builtin.uri:
+    url: "{{ awx_url }}/api/v2/inventories/{{ inventory_id }}/hosts/"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ awx_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      name: "{{ awx_hostname }}"
+      description: "Host registrado automáticamente - Ambiente: {{ ambiente }}"
+      variables: "ansible_host: {{ awx_ip_address }}\nambiente: {{ ambiente }}\nregistered_date: '{{ ansible_date_time.date }}'\nos_family: {{ awx_system_info.os_family }}\ndistribution: {{ awx_system_info.distribution }}"
+    validate_certs: "{{ awx_verify_ssl }}"
+    timeout: "{{ awx_timeout }}"
+    status_code: [201, 400]
+  register: host_creation
+  delegate_to: localhost
+  when: host_check.json.count == 0
+
+- name: 🔄 Actualizar host existente en AWX
+  ansible.builtin.uri:
+    url: "{{ awx_url }}/api/v2/hosts/{{ host_check.json.results[0].id }}/"
+    method: PATCH
+    headers:
+      Authorization: "Bearer {{ awx_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      description: "Host actualizado automáticamente - Ambiente: {{ ambiente }}"
+      variables: "ansible_host: {{ awx_ip_address }}\nambiente: {{ ambiente }}\nupdated_date: '{{ ansible_date_time.date }}'\nos_family: {{ awx_system_info.os_family }}\ndistribution: {{ awx_system_info.distribution }}"
+    validate_certs: "{{ awx_verify_ssl }}"
+    timeout: "{{ awx_timeout }}"
+    status_code: 200
+  register: host_update
+  delegate_to: localhost
+  when: host_check.json.count > 0
+
+# ========== OBTENER ID DEL HOST ==========
+- name: 🆔 Obtener ID del host creado/actualizado
+  ansible.builtin.set_fact:
+    host_id: >-
+      {{
+        host_creation.json.id if (host_check.json.count == 0 and host_creation.status == 201)
+        else (host_check.json.results[0].id if host_check.json.count > 0 else 'ERROR')
+      }}
+  delegate_to: localhost
+
+- name: ❌ Fallar si no se pudo crear/encontrar el host
+  ansible.builtin.fail:
+    msg: |
+      ❌ No se pudo crear o encontrar el host.
+      - Creación exitosa: {{ host_creation.status == 201 if host_creation.status is defined else 'No' }}
+      - Host existente: {{ host_check.json.count > 0 }}
+      - Error creación: {{ host_creation.json if host_creation.json is defined else 'N/A' }}
+  when: host_id == 'ERROR'
+
+# ========== VERIFICAR/CREAR GRUPO ==========
+- name: 🔍 Verificar si el grupo '{{ group }}' existe en el inventario
+  ansible.builtin.uri:
+    url: "{{ awx_url }}/api/v2/inventories/{{ inventory_id }}/groups/?name={{ group | urlencode }}"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ awx_token }}"
+    validate_certs: "{{ awx_verify_ssl }}"
+    timeout: "{{ awx_timeout }}"
+    status_code: 200
+  register: group_check
+  delegate_to: localhost
+
+- name: 🆕 Crear grupo '{{ group }}' si no existe
+  ansible.builtin.uri:
+    url: "{{ awx_url }}/api/v2/inventories/{{ inventory_id }}/groups/"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ awx_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      name: "{{ group }}"
+      description: "Grupo {{ group }} creado automáticamente para hosts {{ ansible_os_family }}"
+      inventory: "{{ inventory_id }}"
+    validate_certs: "{{ awx_verify_ssl }}"
+    timeout: "{{ awx_timeout }}"
+    status_code: 201
+  register: group_creation
+  delegate_to: localhost
+  when: group_check.json.count == 0
+
+- name: ✅ Confirmar grupo disponible
+  ansible.builtin.set_fact:
+    group_id: >-
+      {{
+        group_check.json.results[0].id if group_check.json.count > 0
+        else group_creation.json.id
+      }}
+  delegate_to: localhost
+
+# ========== ASOCIAR HOST AL GRUPO (SIMULANDO INTERFAZ MANUAL) ==========
+- name: 👥 Asociar host al grupo usando el endpoint correcto
+  ansible.builtin.uri:
+    url: "{{ awx_url }}/api/v2/groups/{{ group_id }}/hosts/"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ awx_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      associate: true
+      id: "{{ host_id | int }}"
+    validate_certs: "{{ awx_verify_ssl }}"
+    timeout: "{{ awx_timeout }}"
+    status_code: [204, 400]
+  register: host_group_association
+  delegate_to: localhost
+  failed_when: false  # No fallar automáticamente para manejar errores
+
+- name: 📋 Debug - Mostrar detalles de la asociación
+  ansible.builtin.debug:
+    msg:
+      - "👥 Intentando asociar Host ID: {{ host_id }} al Grupo ID: {{ group_id }}"
+      - "📊 Status Code: {{ host_group_association.status }}"
+      - "📝 Respuesta: {{ host_group_association.json if host_group_association.json is defined else 'N/A' }}"
+      - "❌ Error: {{ host_group_association.msg if host_group_association.status >= 400 else 'Ninguno' }}"
+  delegate_to: localhost
+
+# ========== MÉTODO ALTERNATIVO SI FALLA EL ANTERIOR ==========
+- name: 🔄 Método alternativo - Usar endpoint de hosts para asociar al grupo
+  ansible.builtin.uri:
+    url: "{{ awx_url }}/api/v2/hosts/{{ host_id }}/groups/"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ awx_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      associate: true
+      id: "{{ group_id | int }}"
+    validate_certs: "{{ awx_verify_ssl }}"
+    timeout: "{{ awx_timeout }}"
+    status_code: [204, 400]
+  register: host_group_association_alt
+  delegate_to: localhost
+  failed_when: false
+  when: host_group_association.status not in [204]
+
+- name: 📋 Debug - Método alternativo
+  ansible.builtin.debug:
+    msg:
+      - "🔄 Método alternativo - Status: {{ host_group_association_alt.status if host_group_association_alt is defined else 'No ejecutado' }}"
+      - "📝 Respuesta alt: {{ host_group_association_alt.json if host_group_association_alt is defined and host_group_association_alt.json is defined else 'N/A' }}"
+  delegate_to: localhost
+  when: host_group_association_alt is defined
+
+# ========== TERCER MÉTODO - USANDO CURL DIRECTO ==========
+- name: 🛠️ Método directo usando curl (último recurso)
+  ansible.builtin.shell: |
+    curl -X POST \
+      -H "Authorization: Bearer {{ awx_token }}" \
+      -H "Content-Type: application/json" \
+      -d '{"associate": true, "id": {{ host_id }}}' \
+      "{{ awx_url }}/api/v2/groups/{{ group_id }}/hosts/" \
+      -k -s -w "%{http_code}"
+  register: curl_association
+  delegate_to: localhost
+  when: 
+    - host_group_association.status not in [204]
+    - (host_group_association_alt is not defined or host_group_association_alt.status not in [204])
+
+- name: 📋 Debug - Resultado del curl
+  ansible.builtin.debug:
+    msg:
+      - "🛠️ Curl result: {{ curl_association.stdout if curl_association is defined else 'No ejecutado' }}"
+  delegate_to: localhost
+  when: curl_association is defined
+
+# ========== VERIFICAR ASOCIACIÓN FINAL ==========
+- name: 🔍 Verificar que el host esté en el grupo (verificación final)
+  ansible.builtin.uri:
+    url: "{{ awx_url }}/api/v2/groups/{{ group_id }}/hosts/?name={{ awx_hostname | urlencode }}"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ awx_token }}"
+    validate_certs: "{{ awx_verify_ssl }}"
+    timeout: "{{ awx_timeout }}"
+    status_code: 200
+  register: host_in_group_check
+  delegate_to: localhost
+
+- name: ✅ Confirmar host en grupo
+  ansible.builtin.debug:
+    msg:
+      - "✅ Host '{{ awx_hostname }}' está en el grupo '{{ group }}': {{ 'Sí' if host_in_group_check.json.count > 0 else 'No' }}"
+      - "📊 Hosts en grupo: {{ host_in_group_check.json.count }}"
+      - "🎯 Resultado final: {{ 'ÉXITO' if host_in_group_check.json.count > 0 else 'FALLÓ - Host no asociado al grupo' }}"
+  delegate_to: localhost
+
+# ========== ADVERTENCIA SI NO SE PUDO ASOCIAR ==========
+- name: ⚠️ Advertencia si el host no está en el grupo
+  ansible.builtin.debug:
+    msg:
+      - "⚠️ ADVERTENCIA: El host se creó pero NO se pudo asociar al grupo"
+      - "📝 Deberás asociarlo manualmente en la interfaz de AWX"
+      - "🖥️  Host: {{ awx_hostname }} (ID: {{ host_id }})"
+      - "👥 Grupo: {{ group }} (ID: {{ group_id }})"
+  delegate_to: localhost
+  when: host_in_group_check.json.count == 0
+
+# ========== MOSTRAR RESULTADO FINAL ==========
+- name: 🎉 Mostrar resultado del registro
+  ansible.builtin.debug:
+    msg:
+      - "✅ Host registrado exitosamente en AWX"
+      - "🖥️  Host: {{ awx_hostname }} (ID: {{ host_id }})"
+      - "🌐 ansible_host: {{ awx_ip_address }}"
+      - "📦 Inventario: {{ inventory }} (ID: {{ inventory_id }}) - {{ 'Creado' if inventory_check.json.count == 0 else 'Existente' }}"
+      - "👥 Grupo: {{ group }} (ID: {{ group_id }}) - {{ 'Creado' if group_check.json.count == 0 else 'Existente' }}"
+      - "🌍 Ambiente: {{ ambiente }}"
+      - "🖥️  SO: {{ ansible_os_family }}"
+      - "🔄 Host: {{ 'Creado' if host_check.json.count == 0 else 'Actualizado' }}"
+  delegate_to: localhost

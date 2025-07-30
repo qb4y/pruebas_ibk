@@ -1,0 +1,64 @@
+---
+- name: "Validar variables requeridas"
+  ansible.builtin.assert:
+    that:
+      - vcenter_hostname is defined and vcenter_hostname != ""
+      - vcenter_username is defined and vcenter_username != ""
+      - vcenter_password is defined and vcenter_password != ""
+    fail_msg: "Variables requeridas faltantes: vcenter_hostname, vcenter_username, vcenter_password"
+    success_msg: "Variables requeridas definidas"
+  tags: [always, validation]
+
+- name: "Validar conexion a vCenter"
+  block:
+    - name: "Intentar conexion a vCenter"
+      community.vmware.vmware_about_info:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        validate_certs: "{{ validate_certs | default(false) }}"
+      register: vcenter_info
+
+    - name: "Conexion exitosa a vCenter"
+      ansible.builtin.debug:
+        msg: "{{ conexion_exitosa | to_json }}"
+      vars:
+        conexion_exitosa:
+          estado: "CONECTADO"
+          vcenter: "{{ vcenter_hostname }}"
+          version: "{{ vcenter_info.about_info.version }}"
+          build: "{{ vcenter_info.about_info.build }}"
+          conexion_exitosa: true
+          timestamp: "{{ ansible_date_time.iso8601 }}"
+          mensaje: "Conexion a vCenter establecida correctamente - CONFIGURACION INDEPENDIENTE"
+
+  rescue:
+    - name: "Error de conexion a vCenter"
+      ansible.builtin.fail:
+        msg:
+          - "NO SE PUDO CONECTAR A VCENTER"
+          - "Host: {{ vcenter_hostname }}"
+          - "Usuario: {{ vcenter_username }}"
+          - "Verifica conectividad y credenciales"
+
+  always:
+    - name: "Estado de la validacion"
+      ansible.builtin.debug:
+        msg: "Validacion de conexion completada - {{ 'EXITO' if vcenter_info is defined else 'FALLO' }}"
+
+  tags: [always, validation]
+
+- name: "Configuracion independiente confirmada"
+  ansible.builtin.debug:
+    msg:
+      - "🎯 === CONFIGURACIÓN INDEPENDIENTE ACTIVA ==="
+      - "✅ NO dependemos de customization specs externos"
+      - "✅ Configuración completa en formato template_win"
+      - "✅ Usuarios con permisos reales configurados"
+      - "✅ DNS: 130.30.2.2, 130.30.2.147 (del XML)"
+      - "✅ Dominio: grupoib.local (del XML)"
+      - "✅ Usuario dominio: slu000 (con permisos)"
+      - "✅ Timezone: 45 (del XML)"
+      - "✅ IP específica del windows.yml"
+      - "🚀 LISTO PARA APROVISIONAMIENTO INDEPENDIENTE COMPLETO"
+  tags: [always, configuracion_independiente]

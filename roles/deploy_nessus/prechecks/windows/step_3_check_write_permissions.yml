@@ -1,0 +1,10 @@
+- name: Verificar si se puede escribir en C:\Temp
+  ansible.windows.win_stat:
+    path: "C:\\Temp"
+  register: temp_check
+
+- name: Crear C:\Temp si no existe
+  ansible.windows.win_file:
+    path: "C:\\Temp"
+    state: directory
+  when: not temp_check.stat.exists

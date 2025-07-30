@@ -1,0 +1,59 @@
+---
+galaxy_info:
+  role_name: parchado
+  author: Wilber Ticllasuca
+  description: >
+    Rol principal de parchado multiplataforma para Windows y Linux.
+    Automatiza la detección del sistema operativo y ejecuta el parchado correspondiente
+    usando WSUS/SCCM para Windows y múltiples fuentes para Linux (Satellite, Internet, etc).
+    Incluye validaciones, manejo de errores y reportes detallados.
+  company: Kyndryl
+  license: Kyndryl Intellectual Property
+  min_ansible_version: "2.12"
+
+  platforms:
+    - name: EL
+      versions:
+        - "7"
+        - "8"
+        - "9"
+    - name: Ubuntu
+      versions:
+        - "18.04"
+        - "20.04"
+        - "22.04"
+    - name: Windows
+      versions:
+        - "2016"
+        - "2019"
+        - "2022"
+    - name: SUSE
+      versions:
+        - "12"
+        - "15"
+
+  galaxy_tags:
+    - patching
+    - windows
+    - linux
+    - wsus
+    - sccm
+    - satellite
+    - security
+    - updates
+    - maintenance
+    - system
+    - automation
+    - infrastructure
+    - kyndryl
+
+dependencies:
+  - role: parchado/windows/windows_patch_management
+    when: type_os == 'windows'
+  - role: parchado/linux
+    when: type_os == 'linux'
+
+collections:
+  - community.windows
+  - ansible.windows
+  - community.general

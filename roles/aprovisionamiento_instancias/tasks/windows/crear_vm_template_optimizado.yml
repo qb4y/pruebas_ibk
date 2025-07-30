@@ -1,0 +1,19 @@
+---
+# Orquestador: Crear VM Windows (Modularizado)
+# Función: Coordinar módulos para crear VM usando rol maestro turco
+
+- name: "PASO 1: Mapear variables y configuración"
+  ansible.builtin.include_tasks: ../data_mapper.yml
+  tags: [paso1, data_mapping]
+
+- name: "PASO 2: Mostrar configuración preparada"
+  ansible.builtin.include_tasks: mostrar_configuracion.yml
+  tags: [paso2, mostrar_config]
+
+- name: "PASO 3: Crear VM desde template"
+  ansible.builtin.include_tasks: crear_vm_core.yml
+  tags: [paso3, crear_vm_core]
+
+- name: "PASO 4: Establecer resultado y facts"
+  ansible.builtin.include_tasks: establecer_resultado.yml
+  tags: [paso4, establecer_resultado]
