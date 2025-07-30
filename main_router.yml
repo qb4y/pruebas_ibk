@@ -38,7 +38,7 @@
     #   when: action == 'provisioning'
     - name: 🏗️ Ejecutar Aprovisionamiento
       ansible.builtin.setup:
-        register: r_provisioning
+      register: r_provisioning
       when: action == 'provisioning'
 
     - name: 📤 Exportar variables de VM para el siguiente play
