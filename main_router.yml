@@ -61,6 +61,11 @@
           connection: "{{ ansible_connection | default('ssh') }}"
           port: "{{ ansible_port | default(22) }}"
 
+    - name: 📤 Exportar connection_info
+      ansible.builtin.set_stats:
+        data:
+          connection_info: "{{ connection_info }}"
+
     - name: ➕ Registrar host como dynamic_vm
       add_host:
         name: "{{ connection_info.hostname }}"
