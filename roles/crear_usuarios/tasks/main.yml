@@ -10,29 +10,31 @@
     fail_msg: "❌ {{ ansible_os_family | default('desconocido') }} no es compatible con este rol. Solo soporta RedHat family y Windows."
     success_msg: "✅ Sistema operativo {{ ansible_os_family }} es compatible."
 
-- name: Validar que CU_GRUPOS está definido
-  ansible.builtin.assert:
-    that:
-      - CU_GRUPOS is defined
-      - CU_GRUPOS | length > 0
-    fail_msg: "❌ Variable CU_GRUPOS no está definida o está vacía. Debe contener al menos un grupo."
-    success_msg: "✅ Variable CU_GRUPOS definida con {{ CU_GRUPOS | length }} grupo(s)."
+- name: Validar que CU_GRUPOS está definido y no está vacío
+  ansible.builtin.fail:
+    msg: "❌ Variable CU_GRUPOS no está definida o está vacía. Debe contener al menos un grupo."
+  when: CU_GRUPOS is not defined or CU_GRUPOS | length == 0
+
+- name: Mostrar mensaje de éxito si CU_GRUPOS está definida
+  ansible.builtin.debug:
+    msg: "✅ Variable CU_GRUPOS definida con {{ CU_GRUPOS | length }} grupo(s)."
+  when: CU_GRUPOS is defined and CU_GRUPOS | length > 0
 
 - name: Definir mapeo de permisos por sistema operativo
   ansible.builtin.set_fact:
     permission_map:
       linux:
-        1: ["wheel"]  # Administrador (wheel existe por defecto en RedHat)
-        2: ["users"]  # Usuario estándar
-        3: ["wheel"]  # Operador especializado (usamos wheel también)
-        4: ["users"]  # Solo lectura (usamos users)
-        5: ["users"]  # Operador backup (usamos users)
+        1: ["wheel"] # Administrador (wheel existe por defecto en RedHat)
+        2: ["users"] # Usuario estándar
+        3: ["wheel"] # Operador especializado (usamos wheel también)
+        4: ["users"] # Solo lectura (usamos users)
+        5: ["users"] # Operador backup (usamos users)
       windows:
-        1: "Administrators"     # Administrador
-        2: "Users"             # Usuario estándar
-        3: "Power Users"       # Operador especializado
-        4: "Guests"            # Solo lectura
-        5: "Backup Operators"  # Operador backup
+        1: "Administrators" # Administrador
+        2: "Users" # Usuario estándar
+        3: "Power Users" # Operador especializado
+        4: "Guests" # Solo lectura
+        5: "Backup Operators" # Operador backup
 
 - name: Validar códigos de permisos en CU_GRUPOS
   ansible.builtin.assert:
@@ -68,13 +70,13 @@
 
 - name: Ejecutar creación en Linux
   ansible.builtin.include_tasks: linux.yml
-  when: 
+  when:
     - ansible_os_family == 'RedHat'
     - not (CU_FAKE_ENVIRONMENT | default(false))
 
 - name: Ejecutar creación en Windows
   ansible.builtin.include_tasks: windows.yml
-  when: 
+  when:
     - ansible_os_family == 'Windows'
     - not (CU_FAKE_ENVIRONMENT | default(false))
 
