@@ -9,7 +9,7 @@
       - validate_capacity
       - deploy_nessus
       - general_task
-      - registry_vm
+      - rcp_register
       - crowstrike_agent
       - minio_ansible_automation
       - vault_core
@@ -17,7 +17,6 @@
       - crear_usuarios
       - install_uim_agent
       - user_management
-      - awx_register
       - parchado
 
   pre_tasks:

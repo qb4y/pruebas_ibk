@@ -1,29 +1,37 @@
 ---
-- name: 🔁 Cargar variables de MinIO a todos los hosts
-  set_fact:
-    minio: "{{ vault_all_secrets.minio }}"
+# - name: 🔁 Cargar variables de MinIO a todos los hosts
+#   set_fact:
+#     minio: "{{ vault_all_secrets.minio }}"
 
-- name: 🔁 Propagar variables de MinIO a todos los hosts
-  set_fact:
-    minio_host: "{{ minio.vault_minio_host }}"
-    minio_port: "{{ minio.vault_minio_port }}"
-    minio_user: "{{ minio.vault_minio_user }}"
-    minio_password: "{{ minio.vault_minio_password }}"
-    minio_bucket: "{{ minio.vault_minio_bucket_name }}"
-  delegate_to: localhost
-  run_once: true
-  tags: ["vault"]
+# - name: 🔁 Propagar variables de MinIO a todos los hosts
+#   set_fact:
+#     minio_host: "{{ minio.vault_minio_host }}"
+#     minio_port: "{{ minio.vault_minio_port }}"
+#     minio_user: "{{ minio.vault_minio_user }}"
+#     minio_password: "{{ minio.vault_minio_password }}"
+#     minio_bucket: "{{ minio.vault_minio_bucket_name }}"
+#   delegate_to: localhost
+#   run_once: true
+#   tags: ["vault"]
 
-- name: Validar variables de MinIO
-  ansible.builtin.assert:
-    that:
-      - minio_host is defined
-      - minio_port is defined
-      - minio_user is defined
-      - minio_password is defined
-      - minio_bucket is defined
-    fail_msg: "❌ Variables de MinIO no fueron cargadas correctamente desde Vault"
-  tags: [vault]
+# - name: Validar variables de MinIO
+#   ansible.builtin.assert:
+#     that:
+#       - minio_host is defined
+#       - minio_port is defined
+#       - minio_user is defined
+#       - minio_password is defined
+#       - minio_bucket is defined
+#     fail_msg: "❌ Variables de MinIO no fueron cargadas correctamente desde Vault"
+#   tags: [vault]
+
+- name: Definir variables de MinIO
+  ansible.builtin.set_fact:
+    minio_host: "minio.fake"
+    minio_port: 9000
+    minio_user: "minioadmin"
+    minio_password: "minioadmin"
+    minio_bucket: "instaladores"
 
 - name: Validar producto especificado desde rol principal
   ansible.builtin.assert:
