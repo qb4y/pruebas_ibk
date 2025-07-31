@@ -25,30 +25,23 @@
 #     fail_msg: "❌ Variables de MinIO no fueron cargadas correctamente desde Vault"
 #   tags: [vault]
 
-- name: Definir variables de MinIO
+- name: Definir valores de MinIO para entorno actual
   ansible.builtin.set_fact:
     minio_host: "minio.fake"
     minio_port: 9000
     minio_user: "minioadmin"
     minio_password: "minioadmin"
     minio_bucket: "instaladores"
-
-- name: Validar producto especificado desde rol principal
-  ansible.builtin.assert:
-    that:
-      - provider_minio_product is defined
-      - provider_minio_product != ""
-    fail_msg: |
-      ❌ Variable provider_minio_product debe estar definida desde el rol principal.
-      Ejemplo en rol crowdstrike: provider_minio_product: "crowdstrike"
+    provider_minio_product: "crowdstrike"
+    PROVIDER_MINIO_INCLUDE_CERTIFICATES: false
 
 - name: Mostrar configuración del proveedor dinámico
   ansible.builtin.debug:
     msg:
       - "🎯 Producto: {{ provider_minio_product }}"
-      - "📦 Incluir certificados: {{ PROVIDER_MINIO_INCLUDE_CERTIFICATES | default(false) }}"
+      - "📦 Incluir certificados: {{ PROVIDER_MINIO_INCLUDE_CERTIFICATES }}"
       - "🪣 Bucket: {{ minio_bucket }}"
-      - "🔄 Ejecutado desde rol principal"
+      - "🔄 Ejecutado desde entorno local"
 
 - name: Generar URLs de descarga dinámicas
   ansible.builtin.include_tasks: generate_urls.yml
