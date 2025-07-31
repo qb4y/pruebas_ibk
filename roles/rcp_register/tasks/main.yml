@@ -2,104 +2,110 @@
 # ========== CONTROL PRINCIPAL RCP REGISTER ==========
 - name: 🚀 Iniciando registro RCP para servidor {{ inventory_hostname }}
   ansible.builtin.debug:
-    msg: 
+    msg:
       - "📋 Generando registro CSV para RCP"
       - "🖥️  Servidor: {{ inventory_hostname }}"
       - "📅 Fecha: {{ ansible_date_time.date }}"
 
-# ========== CARGAR CREDENCIALES MINIO DESDE VAULT ==========
-- name: ✅ Verificar que vault_core se haya ejecutado
-  ansible.builtin.assert:
-    that:
-      - vault_all_secrets is defined
-    fail_msg: |
-      ❌ vault_all_secrets no está definido. 
-      Asegúrate de que el rol vault_core se ejecute antes de rcp_register.
+# ========== OMITIR VAULT Y MINIO ==========
+# - name: ✅ Verificar que vault_core se haya ejecutado
+#   ansible.builtin.assert:
+#     that:
+#       - vault_all_secrets is defined
+#     fail_msg: |
+#       ❌ vault_all_secrets no está definido.
+#       Asegúrate de que el rol vault_core se ejecute antes de rcp_register.
 
-- name: 🔐 Cargar variables de MinIO desde Vault
+# - name: 🔐 Cargar variables de MinIO desde Vault
+#   ansible.builtin.set_fact:
+#     minio: "{{ vault_all_secrets.registers }}"
+
+# - name: 🔐 Establecer variables de conexión MinIO
+#   ansible.builtin.set_fact:
+#     minio_host: "{{ minio.vault_minio_host }}"
+#     minio_port: "{{ minio.vault_minio_port }}"
+#     minio_user: "{{ minio.vault_minio_user }}"
+#     minio_password: "{{ minio.vault_minio_password }}"
+#     minio_bucket: "{{ minio.vault_minio_bucket_name }}"
+#   delegate_to: localhost
+#   run_once: true
+#   tags: ["vault"]
+
+# - name: ✅ Validar variables de MinIO
+#   ansible.builtin.assert:
+#     that:
+#       - minio_host is defined
+#       - minio_port is defined
+#       - minio_user is defined
+#       - minio_password is defined
+#       - minio_bucket is defined
+#     fail_msg: "❌ Variables de MinIO no fueron cargadas correctamente desde Vault"
+#   tags: [vault]
+
+# - name: 📋 Mostrar configuración MinIO (sin credenciales)
+#   ansible.builtin.debug:
+#     msg:
+#       - "🪣 Bucket: {{ minio_bucket }}"
+#       - "🖥️  Host: {{ minio_host }}:{{ minio_port }}"
+#       - "🔄 Ejecutado independientemente"
+
+# - name: 🔧 Verificar que MinIO Client (mc) está disponible
+#   ansible.builtin.command: mc --version
+#   register: mc_version_check
+#   failed_when: mc_version_check.rc != 0
+#   delegate_to: localhost
+#   run_once: true
+
+# - name: ✅ Mostrar versión de mc disponible
+#   ansible.builtin.debug:
+#     msg: "MinIO Client encontrado: {{ mc_version_check.stdout.split('\n')[0] }}"
+#   delegate_to: localhost
+#   run_once: true
+
+# - name: 🔐 Configurar alias de MinIO en mc
+#   ansible.builtin.command: >
+#     mc alias set rcpMinio
+#     http://{{ minio_host }}:{{ minio_port }}
+#     {{ minio_user }}
+#     {{ minio_password }}
+#   register: mc_alias_result
+#   failed_when: mc_alias_result.rc != 0
+#   delegate_to: localhost
+#   run_once: true
+#   no_log: true
+
+# - name: ✅ Confirmar configuración de alias
+#   ansible.builtin.debug:
+#     msg: "Alias 'rcpMinio' configurado exitosamente"
+#   delegate_to: localhost
+#   run_once: true
+
+# - name: 🔍 Verificar conectividad con MinIO
+#   ansible.builtin.command: mc ls rcpMinio/
+#   register: mc_connectivity_check
+#   failed_when: false
+#   delegate_to: localhost
+#   run_once: true
+
+# - name: ❌ Fallar si no hay conectividad con MinIO
+#   ansible.builtin.fail:
+#     msg: "❌ No se puede conectar a MinIO. Verifica credenciales y conectividad."
+#   when: mc_connectivity_check.rc != 0
+
+# - name: ✅ Conectividad con MinIO exitosa
+#   ansible.builtin.debug:
+#     msg: "Conexión establecida con MinIO correctamente"
+#   delegate_to: localhost
+#   run_once: true
+
+# 🔁 Asignar variables necesarias manualmente
+- name: Asignar variables estáticas para entorno de prueba
   ansible.builtin.set_fact:
-    minio: "{{ vault_all_secrets.registers }}"
-
-- name: 🔐 Establecer variables de conexión MinIO
-  ansible.builtin.set_fact:
-    minio_host: "{{ minio.vault_minio_host }}"
-    minio_port: "{{ minio.vault_minio_port }}"
-    minio_user: "{{ minio.vault_minio_user }}"
-    minio_password: "{{ minio.vault_minio_password }}"
-    minio_bucket: "{{ minio.vault_minio_bucket_name }}"
-  delegate_to: localhost
-  run_once: true
-  tags: ["vault"]
-
-- name: ✅ Validar variables de MinIO
-  ansible.builtin.assert:
-    that:
-      - minio_host is defined
-      - minio_port is defined
-      - minio_user is defined
-      - minio_password is defined
-      - minio_bucket is defined
-    fail_msg: "❌ Variables de MinIO no fueron cargadas correctamente desde Vault"
-  tags: [vault]
-
-- name: 📋 Mostrar configuración MinIO (sin credenciales)
-  ansible.builtin.debug:
-    msg:
-      - "🪣 Bucket: {{ minio_bucket }}"
-      - "🖥️  Host: {{ minio_host }}:{{ minio_port }}"
-      - "🔄 Ejecutado independientemente"
-
-# ========== VERIFICAR MC CLIENT ==========
-- name: 🔧 Verificar que MinIO Client (mc) está disponible
-  ansible.builtin.command: mc --version
-  register: mc_version_check
-  failed_when: mc_version_check.rc != 0
-  delegate_to: localhost
-  run_once: true
-
-- name: ✅ Mostrar versión de mc disponible
-  ansible.builtin.debug:
-    msg: "MinIO Client encontrado: {{ mc_version_check.stdout.split('\n')[0] }}"
-  delegate_to: localhost
-  run_once: true
-
-# ========== CONFIGURAR CONEXIÓN MINIO ==========
-- name: 🔐 Configurar alias de MinIO en mc
-  ansible.builtin.command: >
-    mc alias set rcpMinio 
-    http://{{ minio_host }}:{{ minio_port }} 
-    {{ minio_user }} 
-    {{ minio_password }}
-  register: mc_alias_result
-  failed_when: mc_alias_result.rc != 0
-  delegate_to: localhost
-  run_once: true
-  no_log: true
-
-- name: ✅ Confirmar configuración de alias
-  ansible.builtin.debug:
-    msg: "Alias 'rcpMinio' configurado exitosamente"
-  delegate_to: localhost
-  run_once: true
-
-# ========== VERIFICAR CONECTIVIDAD ==========
-- name: 🔍 Verificar conectividad con MinIO
-  ansible.builtin.command: mc ls rcpMinio/
-  register: mc_connectivity_check
-  failed_when: false
-  delegate_to: localhost
-  run_once: true
-
-- name: ❌ Fallar si no hay conectividad con MinIO
-  ansible.builtin.fail:
-    msg: "❌ No se puede conectar a MinIO. Verifica credenciales y conectividad."
-  when: mc_connectivity_check.rc != 0
-
-- name: ✅ Conectividad con MinIO exitosa
-  ansible.builtin.debug:
-    msg: "Conexión establecida con MinIO correctamente"
-  delegate_to: localhost
-  run_once: true
+    minio_host: "minio.fake"
+    minio_port: 9000
+    minio_user: "user"
+    minio_password: "pass"
+    minio_bucket: "bucket-rcp"
 
 # ========== RECOLECTAR FACTS ==========
 - name: 🧠 Recolectar facts del sistema si no están presentes
@@ -111,7 +117,7 @@
   ansible.builtin.include_tasks: linux.yml
   when: ansible_os_family != 'Windows'
 
-- name: 🪟 Procesar datos para sistema Windows  
+- name: 🪟 Procesar datos para sistema Windows
   ansible.builtin.include_tasks: windows.yml
   when: ansible_os_family == 'Windows'
 
@@ -156,12 +162,18 @@
     fail_msg: "❌ El archivo CSV generado no contiene todos los datos esperados"
   delegate_to: localhost
 
-# ========== SUBIR A MINIO ==========
-- name: 📤 Subir archivo CSV a MinIO
-  ansible.builtin.include_tasks: upload.yml
-  vars:
-    csv_local_path: "/tmp/{{ rcp_csv_filename }}"
-    csv_remote_path: "{{ rcp_csv_filename }}"
+# ❌ OMITIR SUBIDA REAL A MINIO
+# - name: 📤 Subir archivo CSV a MinIO
+#   ansible.builtin.include_tasks: upload.yml
+#   vars:
+#     csv_local_path: "/tmp/{{ rcp_csv_filename }}"
+#     csv_remote_path: "{{ rcp_csv_filename }}"
+
+# - name: 🧹 Remover alias temporal de MinIO
+#   ansible.builtin.command: mc alias remove rcpMinio
+#   failed_when: false
+#   delegate_to: localhost
+#   run_once: true
 
 # ========== LIMPIEZA Y FINALIZACIÓN ==========
 - name: 🧹 Limpiar archivo temporal local
@@ -170,16 +182,10 @@
     state: absent
   delegate_to: localhost
 
-- name: 🧹 Remover alias temporal de MinIO
-  ansible.builtin.command: mc alias remove rcpMinio
-  failed_when: false
-  delegate_to: localhost
-  run_once: true
-
 - name: ✅ Registro RCP completado exitosamente
   ansible.builtin.debug:
     msg:
-      - "🎉 Archivo CSV subido correctamente a MinIO"
-      - "📁 Bucket: {{ minio_bucket }}"
-      - "📄 Archivo: {{ rcp_csv_filename }}"
+      - "🎉 Archivo CSV generado correctamente"
+      - "📁 Bucket destino: {{ minio_bucket }}"
+      - "📄 Nombre de archivo: {{ rcp_csv_filename }}"
       - "🖥️  Servidor registrado: {{ rcp_hostname }}"
