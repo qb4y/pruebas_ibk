@@ -2,6 +2,7 @@
 - name: 🚀 Aprovisionamiento de VM
   hosts: all
   gather_facts: true
+  check_mode: true
   become: false
   vars:
     valid_actions:
