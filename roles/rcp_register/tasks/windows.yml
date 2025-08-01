@@ -36,7 +36,7 @@
 - name: ⚠️ Advertencia si no se encontró IP válida
   ansible.builtin.debug:
     msg: "⚠️ No se encontró IP válida en el sistema Windows"
-  when: rcp_ip_address == 'NO DEFINIDA'
+  when: rcp_ip_address == 'NO DEFINIDA' 
 
 # ========== FORMATEAR VERSION DEL SO ==========
 - name: 🔧 Formatear versión del SO según formato RCP para Windows
