@@ -49,9 +49,9 @@ galaxy_info:
 
 dependencies:
   - role: parchado/windows/windows_patch_management
-    when: type_os == 'windows'
+    when: target_platform == 'windows'
   - role: parchado/linux
-    when: type_os == 'linux'
+    when: target_platform == 'linux'
 
 collections:
   - community.windows

@@ -4,8 +4,8 @@
 
 - name: Detectar sistema operativo automáticamente si no se especifica
   ansible.builtin.set_fact:
-    type_os: "{{ 'windows' if ansible_os_family == 'Windows' else 'linux' }}"
-  when: type_os is not defined
+    target_platform: "{{ 'windows' if ansible_os_family == 'Windows' else 'linux' }}"
+  when: target_platform is not defined
   tags:
     - always
     - os_detection
@@ -13,9 +13,9 @@
 - name: Validar tipo de SO soportado
   ansible.builtin.assert:
     that:
-      - type_os in ['windows', 'linux']
-    fail_msg: "Tipo de SO no soportado: {{ type_os }}. Debe ser 'windows' o 'linux'"
-    success_msg: "Tipo de SO válido: {{ type_os }}"
+      - target_platform in ['windows', 'linux']
+    fail_msg: "Tipo de SO no soportado: {{ target_platform }}. Debe ser 'windows' o 'linux'"
+    success_msg: "Tipo de SO válido: {{ target_platform }}"
   tags:
     - always
     - validation
@@ -25,7 +25,7 @@
     var: configuracion_parchado
   vars:
     configuracion_parchado:
-      tipo_os: "{{ type_os }}"
+      tipo_os: "{{ target_platform }}"
       sistema_detectado: "{{ ansible_os_family }}"
       servidor: "{{ ansible_hostname }}"
       usuario: "{{ ansible_user }}"
@@ -55,7 +55,7 @@
       - ad_password: {{ '[DEFINIDO]' if ad_password is defined else 'FALTANTE' }} (solo para WSUS)
       - selected_category: {{ selected_category | default('FALTANTE') }}
     success_msg: "Variables de Windows validadas correctamente"
-  when: type_os == 'windows'
+  when: target_platform == 'windows'
   tags:
     - windows
     - validation
@@ -77,7 +77,7 @@
     winpatch_rescue_endpoint: "{{ rescue_endpoint | default(false) }}"
     winpatch_save_logs: "{{ save_logs | default(false) }}"
     winpatch_logs_path: "{{ logs_path | default('C:/temp/patch_logs') }}"
-  when: type_os == 'windows'
+  when: target_platform == 'windows'
   tags:
     - windows
     - variable_mapping
@@ -85,7 +85,7 @@
 - name: Ejecutar parchado de Windows
   ansible.builtin.include_role:
     name: parchado/windows/windows_patch_management
-  when: type_os == 'windows'
+  when: target_platform == 'windows'
   tags:
     - windows
     - patching
@@ -105,7 +105,7 @@
       - backup_to_jumphost: {{ backup_to_jumphost | default('FALTANTE') }} (true/false)
       - reboot_required: {{ reboot_required | default('FALTANTE') }} (true/false)
     success_msg: "Variables de Linux validadas correctamente"
-  when: type_os == 'linux'
+  when: target_platform == 'linux'
   tags:
     - linux
     - validation
@@ -113,7 +113,7 @@
 - name: Recolectar facts del sistema para Linux
   ansible.builtin.setup:
   when:
-    - type_os == 'linux'
+    - target_platform == 'linux'
   tags:
     - linux
     - facts
@@ -123,7 +123,7 @@
     path: "/etc/ansible/facts.d/unix_patching.fact"
     state: absent
   when:
-    - type_os == 'linux'
+    - target_platform == 'linux'
   become: true
   ignore_errors: true
   tags:
@@ -187,7 +187,7 @@
       become: true
 
   when:
-    - type_os == 'linux'
+    - target_platform == 'linux'
     - ansible_facts.os_family == "RedHat"
   tags:
     - linux
@@ -203,7 +203,7 @@
 #     __reboot_required__: "{{ reboot_required }}"
 #     __fail_on_error__: "{{ fail_on_error | default(true) }}"
 #   when:
-#     - type_os == 'linux'
+#     - target_platform == 'linux'
 #     - ansible_distribution == "CentOS"
 #   tags:
 #     - linux
@@ -221,7 +221,7 @@
       distribuciones_soportadas: ["RedHat", "CentOS"]
       accion_requerida: "Agregar soporte para esta distribución"
   when:
-    - type_os == 'linux'
+    - target_platform == 'linux'
     - ansible_os_family not in ["RedHat"] and ansible_distribution not in ["CentOS"]
   tags:
     - linux
@@ -233,12 +233,12 @@
     parchado_resultado:
       timestamp: "{{ ansible_date_time.iso8601 }}"
       servidor: "{{ ansible_hostname }}"
-      tipo_os: "{{ type_os }}"
+      tipo_os: "{{ target_platform }}"
       sistema_operativo: "{{ ansible_os_family }}"
-      configuracion_windows: "{{ {'patching_mode': winpatch_patching_mode, 'target_environment': winpatch_target_environment, 'wsus_server': winpatch_wsus_server, 'selected_category': winpatch_selected_category} if type_os == 'windows' else 'N/A' }}"
-      configuracion_linux: "{{ {'patch_source': patch_source, 'patch_type': patch_type, 'backup_to_jumphost': backup_to_jumphost, 'reboot_required': reboot_required} if type_os == 'linux' else 'N/A' }}"
+      configuracion_windows: "{{ {'patching_mode': winpatch_patching_mode, 'target_environment': winpatch_target_environment, 'wsus_server': winpatch_wsus_server, 'selected_category': winpatch_selected_category} if target_platform == 'windows' else 'N/A' }}"
+      configuracion_linux: "{{ {'patch_source': patch_source, 'patch_type': patch_type, 'backup_to_jumphost': backup_to_jumphost, 'reboot_required': reboot_required} if target_platform == 'linux' else 'N/A' }}"
       estado: "Completado"
-      return_code: "{{ winpatch_return_code if type_os == 'windows' and winpatch_return_code is defined else 'N/A' }}"
+      return_code: "{{ winpatch_return_code if target_platform == 'windows' and winpatch_return_code is defined else 'N/A' }}"
   tags:
     - always
     - final_result
