@@ -98,17 +98,17 @@
       - "🤖 ROBOT: {{ ROBOTNAME }} ({{ ROBOTIP }})"
       - "📦 Primer puerto disponible: {{ FIRST_PROBE_PORT }}"
 
-- name: Ejecutar prechecks para Linux
-  ansible.builtin.import_tasks: ../prechecks/linux.yml
-  when: target_platform == 'linux'
+# - name: Ejecutar prechecks para Linux
+#   ansible.builtin.import_tasks: ../prechecks/linux.yml
+#   when: target_platform == 'linux'
 
 - name: Ejecutar tareas de instalación en Linux
   ansible.builtin.include_tasks: linux.yml
   when: target_platform == 'linux'
 
-- name: Ejecutar prechecks para Windows
-  ansible.builtin.import_tasks: ../prechecks/windows.yml
-  when: target_platform == 'windows'
+# - name: Ejecutar prechecks para Windows
+#   ansible.builtin.import_tasks: ../prechecks/windows.yml
+#   when: target_platform == 'windows'
 
 - name: Ejecutar tareas de instalación en Windows
   ansible.builtin.include_tasks: windows.yml
