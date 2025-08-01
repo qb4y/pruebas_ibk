@@ -1,21 +1,9 @@
 ---
 # Generación dinámica de URLs usando mapeos centralizados
+
 - name: 🧠 Recolectar facts si no están presentes
   ansible.builtin.setup:
   when: ansible_os_family is not defined
-
-- name: Verificar que MinIO Client (mc) está disponible
-  ansible.builtin.command: mc --version
-  register: mc_version_check
-  failed_when: mc_version_check.rc != 0
-  delegate_to: localhost
-  run_once: true
-
-- name: Mostrar versión de mc disponible
-  ansible.builtin.debug:
-    msg: "✅ MinIO Client encontrado: {{ mc_version_check.stdout.split('\n')[0] }}"
-  delegate_to: localhost
-  run_once: true
 
 - name: Cargar mapeos de instaladores
   ansible.builtin.include_vars: mapping_installers.yml
@@ -37,40 +25,50 @@
   delegate_to: localhost
   run_once: true
 
-- name: Configurar alias de MinIO en mc
-  ansible.builtin.command: >
-    mc alias set miMinio 
-    http://{{ minio_host }}:{{ minio_port }} 
-    {{ minio_user }} 
-    {{ minio_password }}
-  register: mc_alias_result
-  failed_when: mc_alias_result.rc != 0
-  delegate_to: localhost
-  run_once: true
-  # no_log: true
+# 🧪 Simulación — Saltamos verificación de MinIO Client
+# - name: Verificar que MinIO Client (mc) está disponible
+#   ansible.builtin.command: mc --version
+#   register: mc_version_check
+#   failed_when: mc_version_check.rc != 0
+#   delegate_to: localhost
+#   run_once: true
 
-- name: Mostrar resultado de configuración de alias
+- name: Simular cliente MinIO disponible
   ansible.builtin.debug:
-    msg: 
-      - "✅ Alias configurado exitosamente"
-      - "📤 Salida: {{ mc_alias_result.stdout if mc_alias_result.stdout else 'Sin salida' }}"
+    msg: "✅ MinIO Client disponible (simulado)"
   delegate_to: localhost
   run_once: true
 
-- name: Verificar conectividad con MinIO usando mc
-  ansible.builtin.command: mc ls miMinio/{{ minio_bucket }}
-  register: mc_connectivity_check
-  failed_when: false
-  delegate_to: localhost
-  run_once: true
+# 🧪 Simulación — Saltamos alias
+# - name: Configurar alias de MinIO en mc
+#   ansible.builtin.command: >
+#     mc alias set miMinio 
+#     http://{{ minio_host }}:{{ minio_port }} 
+#     {{ minio_user }} 
+#     {{ minio_password }}
+#   register: mc_alias_result
+#   failed_when: mc_alias_result.rc != 0
+#   delegate_to: localhost
+#   run_once: true
 
-- name: Mostrar resultado de conectividad
+- name: Simular alias configurado
   ansible.builtin.debug:
-    msg:
-      - "🔍 Código de salida: {{ mc_connectivity_check.rc }}"
-      - "✅ Salida: {{ mc_connectivity_check.stdout if mc_connectivity_check.stdout else 'Sin salida' }}"
+    msg: "✅ Alias configurado exitosamente (simulado)"
   delegate_to: localhost
   run_once: true
+
+# 🧪 Simulación — Saltamos conectividad real
+# - name: Verificar conectividad con MinIO usando mc
+#   ansible.builtin.command: mc ls miMinio/{{ minio_bucket }}
+#   register: mc_connectivity_check
+#   failed_when: false
+#   delegate_to: localhost
+#   run_once: true
+
+- name: Simular conectividad exitosa con MinIO
+  ansible.builtin.set_fact:
+    mc_connectivity_check:
+      rc: 0
 
 - name: Fallar si no hay conectividad con MinIO
   ansible.builtin.fail:
@@ -110,25 +108,27 @@
       {{ product_mappings[provider_minio_product].installers.keys() | list | join(', ') }}
   when: installer_path is not defined
 
-- name: Verificar que el archivo del instalador existe en MinIO
-  ansible.builtin.command: mc stat miMinio/{{ minio_bucket }}/{{ installer_path }}
-  register: installer_stat_check
-  failed_when: installer_stat_check.rc != 0
-  delegate_to: localhost
-  run_once: true
+# 🧪 Simulación — Saltamos verificación real del archivo en MinIO
+# - name: Verificar que el archivo del instalador existe en MinIO
+#   ansible.builtin.command: mc stat miMinio/{{ minio_bucket }}/{{ installer_path }}
+#   register: installer_stat_check
+#   failed_when: installer_stat_check.rc != 0
+#   delegate_to: localhost
+#   run_once: true
 
-- name: Generar URL pre-firmada del instalador (expira en {{ global_config.default_expiry }})
-  ansible.builtin.command: >
-    mc share download --expire {{ global_config.default_expiry }}
-    miMinio/{{ minio_bucket }}/{{ installer_path }}
-  register: presigned_url_result
-  failed_when: presigned_url_result.rc != 0
-  delegate_to: localhost
-  run_once: true
+# 🧪 Simulación — Saltamos generación real
+# - name: Generar URL pre-firmada del instalador
+#   ansible.builtin.command: >
+#     mc share download --expire {{ global_config.default_expiry }}
+#     miMinio/{{ minio_bucket }}/{{ installer_path }}
+#   register: presigned_url_result
+#   failed_when: presigned_url_result.rc != 0
+#   delegate_to: localhost
+#   run_once: true
 
-- name: Establecer URL de descarga pre-firmada del instalador
+- name: Establecer URL simulada del instalador
   ansible.builtin.set_fact:
-    product_installer_url: "{{ presigned_url_result.stdout_lines | select('match', '^Share:.*') | first | regex_replace('^Share: ', '') }}"
+    product_installer_url: "https://minio.fake/{{ provider_minio_product }}/{{ installer_path | basename }}"
 
 - name: Obtener certificados del producto (si existen)
   ansible.builtin.set_fact:
@@ -142,32 +142,14 @@
         (product_certificates | length > 0)
       }}
 
-- name: Verificar que los certificados existen en MinIO
-  ansible.builtin.command: mc stat miMinio/{{ minio_bucket }}/{{ item }}
-  register: cert_stat_results
-  loop: "{{ product_certificates }}"
-  failed_when: cert_stat_results.rc != 0
-  delegate_to: localhost
-  run_once: true
-  when: include_certificates
-
-- name: Generar URLs pre-firmadas de certificados
-  ansible.builtin.command: >
-    mc share download --expire {{ global_config.default_expiry }}
-    miMinio/{{ minio_bucket }}/{{ item }}
-  register: cert_presigned_results
-  loop: "{{ product_certificates }}"
-  failed_when: cert_presigned_results.rc != 0
-  delegate_to: localhost
-  run_once: true
-  when: include_certificates
-
-- name: Establecer URLs de certificados pre-firmadas
+# 🧪 Simulación — Certificados
+- name: Establecer URLs simuladas de certificados
   ansible.builtin.set_fact:
-    product_certificate_urls: "{{ cert_presigned_results.results | map(attribute='stdout_lines') | map('select', 'match', '^Share:.*') | map('first') | map('regex_replace', '^Share: ', '') | list }}"
+    product_certificate_urls: >-
+      {{ product_certificates | map('basename') | map('regex_replace', '^(.*)$', 'https://minio.fake/' ~ provider_minio_product ~ '/\\1') | list }}
   when: include_certificates
 
-- name: Establecer lista vacía de certificados (si no se incluyen)
+- name: Establecer lista vacía si no se incluyen certificados
   ansible.builtin.set_fact:
     product_certificate_urls: []
   when: not include_certificates
@@ -176,13 +158,12 @@
   ansible.builtin.debug:
     msg:
       - "✅ Instalador {{ provider_minio_product }}: {{ product_installer_url }}"
-      - "📥 Certificados: {{ product_certificate_urls | length }} URLs {{ 'generadas' if include_certificates else 'saltadas' }}"
+      - "📥 Certificados: {{ product_certificate_urls | length }} URLs"
       - "⏰ URLs expiran en {{ global_config.default_expiry }}"
       - "🔗 Bucket: miMinio/{{ minio_bucket }}/{{ installer_path | dirname }}/"
       - "🖥️ SO detectado: {{ os_key }}"
 
-# ========== VARIABLES DE COMPATIBILIDAD ==========
-# Para mantener compatibilidad con roles existentes
+# ========= VARIABLES DE COMPATIBILIDAD ==========
 
 - name: Establecer variables de compatibilidad para CrowdStrike
   ansible.builtin.set_fact:

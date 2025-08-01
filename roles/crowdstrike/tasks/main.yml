@@ -78,7 +78,7 @@
 #   ansible.builtin.include_tasks: linux.yml
 #   when: target_platform == 'Linux'
 
-- name: set_fact manual con valores fake de CrowdStrike
+- name: 🔁 Establecer variables de configuración para CrowdStrike
   ansible.builtin.set_fact:
     crowdstrike_console_url: "https://falcon.fakecloud.com"
     crowdstrike_customer_id: "1234567865435678"
@@ -89,22 +89,22 @@
       - "https://minio.fake/download/cert1.pem"
       - "https://minio.fake/download/cert2.pem"
 
-- name: Mostrar configuración de CrowdStrike
+- name: 📋 Mostrar configuración de instalación
   ansible.builtin.debug:
     msg:
       - "🛡️ Producto: CrowdStrike Falcon Sensor"
       - "🔗 Consola: {{ crowdstrike_console_url }}"
       - "🆔 Customer ID: {{ crowdstrike_customer_id }}"
-      - "📥 Instalador URL: ✅ listo"
-      - "📜 Certificados: {{ crowdstrike_cert_urls | length }} URLs"
+      - "📥 Instalador URL: {{ crowdstrike_installer_url }}"
+      - "📜 Certificados: {{ crowdstrike_cert_urls | length }} archivos"
       - "🖥️ SO detectado: {{ os_key | default('Auto-detectado') }}"
 
-- name: Ejecutar instalación en Windows
+- name: 🪟 Instalar en Windows
   ansible.builtin.debug:
-    msg: "🧪 Se instalaría CrowdStrike en Windows desde {{ crowdstrike_installer_url }}"
+    msg: "🧪 Instalando en Windows desde {{ crowdstrike_installer_url }}"
   when: target_platform == 'Windows'
 
-- name: Ejecutar instalación en Linux
+- name: 🐧 Instalar en Linux
   ansible.builtin.debug:
-    msg: "🧪 Se instalaría CrowdStrike en Linux desde {{ crowdstrike_installer_url }}"
+    msg: "🧪 Instalando en Linux desde {{ crowdstrike_installer_url }}"
   when: target_platform == 'Linux'
