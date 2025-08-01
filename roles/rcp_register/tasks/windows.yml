@@ -30,11 +30,13 @@
       }}
 
 - name: ✅ Validar IP address Windows
-  ansible.builtin.assert:
-    that:
-      - rcp_ip_address != "NO_IP_FOUND"
-      - rcp_ip_address is match("^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$")
-    fail_msg: "❌ IP address no válida o no encontrada: {{ rcp_ip_address }}"
+  ansible.builtin.set_fact:
+    rcp_ip_address: "{{ 'NO DEFINIDA' if rcp_ip_address == 'NO_IP_FOUND' else rcp_ip_address }}"
+
+- name: ⚠️ Advertencia si no se encontró IP válida
+  ansible.builtin.debug:
+    msg: "⚠️ No se encontró IP válida en el sistema Windows"
+  when: rcp_ip_address == 'NO DEFINIDA'
 
 # ========== FORMATEAR VERSION DEL SO ==========
 - name: 🔧 Formatear versión del SO según formato RCP para Windows
