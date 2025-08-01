@@ -22,20 +22,19 @@
   ansible.builtin.set_fact:
     rcp_ip_address: >-
       {{
-        ansible_all_ipv4_addresses
-        | reject("search", "^169\\.254\\.")      # excluir APIPA
-        | reject("search", "^127\\.")            # excluir localhost
+        (ansible_all_ipv4_addresses | default([]))
+        | reject("search", "^169\\.254\\.")
+        | reject("search", "^127\\.")
         | list
-        | first
+        | first | default("NO_IP_FOUND")
       }}
 
 - name: ✅ Validar IP address Windows
   ansible.builtin.assert:
     that:
-      - rcp_ip_address is defined
-      - rcp_ip_address != ""
+      - rcp_ip_address != "NO_IP_FOUND"
       - rcp_ip_address is match("^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$")
-    fail_msg: "❌ IP address no válida o no encontrada: {{ rcp_ip_address | default('NO DEFINIDA') }}"
+    fail_msg: "❌ IP address no válida o no encontrada: {{ rcp_ip_address }}"
 
 # ========== FORMATEAR VERSION DEL SO ==========
 - name: 🔧 Formatear versión del SO según formato RCP para Windows
