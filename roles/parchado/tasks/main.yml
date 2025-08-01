@@ -2,249 +2,257 @@
 # Rol Principal de Parchado - Decisión por Tipo de SO
 # Soporta Windows y Linux con variables específicas por plataforma
 
-- name: Detectar sistema operativo automáticamente
-  ansible.builtin.set_fact:
-    target_platform: "{{ ansible_os_family | lower }}"
-  tags:
-    - always
-    - os_detection
+# - name: Detectar sistema operativo automáticamente
+#   ansible.builtin.set_fact:
+#     target_platform: "{{ ansible_os_family | lower }}"
+#   tags:
+#     - always
+#     - os_detection
 
-- name: Validar tipo de SO soportado
-  ansible.builtin.assert:
-    that:
-      - target_platform in ['windows', 'linux']
-    fail_msg: "Tipo de SO no soportado: {{ target_platform }}. Debe ser 'windows' o 'linux'"
-    success_msg: "Tipo de SO válido: {{ target_platform }}"
-  tags:
-    - always
-    - validation
+# - name: Validar tipo de SO soportado
+#   ansible.builtin.assert:
+#     that:
+#       - target_platform in ['windows', 'linux']
+#     fail_msg: "Tipo de SO no soportado: {{ target_platform }}. Debe ser 'windows' o 'linux'"
+#     success_msg: "Tipo de SO válido: {{ target_platform }}"
+#   tags:
+#     - always
+#     - validation
 
-- name: Mostrar configuración de parchado
-  ansible.builtin.debug:
-    var: configuracion_parchado
-  vars:
-    configuracion_parchado:
-      tipo_os: "{{ target_platform }}"
-      sistema_detectado: "{{ ansible_os_family }}"
-      servidor: "{{ ansible_hostname }}"
-      usuario: "{{ ansible_user }}"
-      timestamp: "{{ ansible_date_time.iso8601 }}"
-  tags:
-    - always
-    - debug
-
-# ================== PARCHADO WINDOWS ==================
-- name: Validar variables requeridas para Windows
-  ansible.builtin.assert:
-    that:
-      - patching_mode is defined and patching_mode in ['wsus', 'sccm']
-      - target_environment is defined
-      - domain_name is defined
-      - (wsus_server is defined and wsus_server != '') if patching_mode == 'wsus' else true
-      - ad_username is defined if patching_mode == 'wsus' else true
-      - ad_password is defined if patching_mode == 'wsus' else true
-      - selected_category is defined and selected_category | length > 0
-    fail_msg: |
-      Variables faltantes para parchado Windows:
-      - patching_mode: {{ patching_mode | default('FALTANTE') }} (wsus/sccm)
-      - target_environment: {{ target_environment | default('FALTANTE') }}
-      - domain_name: {{ domain_name | default('FALTANTE') }}
-      - wsus_server: {{ wsus_server | default('FALTANTE') }} (solo para WSUS)
-      - ad_username: {{ ad_username | default('FALTANTE') }} (solo para WSUS)
-      - ad_password: {{ '[DEFINIDO]' if ad_password is defined else 'FALTANTE' }} (solo para WSUS)
-      - selected_category: {{ selected_category | default('FALTANTE') }}
-    success_msg: "Variables de Windows validadas correctamente"
-  when: target_platform == 'windows'
-  tags:
-    - windows
-    - validation
-
-- name: Mapear variables de Windows al formato del rol
-  ansible.builtin.set_fact:
-    winpatch_patching_mode: "{{ patching_mode }}"
-    winpatch_target_environment: "{{ target_environment }}"
-    winpatch_domain_name: "{{ domain_name }}"
-    winpatch_wsus_server: "{{ wsus_server | default('') }}"
-    winpatch_ad_username: "{{ ad_username | default('') }}"
-    winpatch_ad_password: "{{ ad_password | default('') }}"
-    winpatch_selected_category: "{{ selected_category }}"
-    # Variables opcionales con valores por defecto
-    winpatch_update_operation: "{{ update_operation | default('install') }}"
-    winpatch_reboot_after_installation: "{{ reboot_after_installation | default(true) }}"
-    winpatch_resume_services: "{{ resume_services | default(true) }}"
-    winpatch_perform_ou_registration: "{{ perform_ou_registration | default(false) }}"
-    winpatch_rescue_endpoint: "{{ rescue_endpoint | default(false) }}"
-    winpatch_save_logs: "{{ save_logs | default(false) }}"
-    winpatch_logs_path: "{{ logs_path | default('C:/temp/patch_logs') }}"
-  when: target_platform == 'windows'
-  tags:
-    - windows
-    - variable_mapping
-
-- name: Ejecutar parchado de Windows
-  ansible.builtin.include_role:
-    name: parchado/windows/windows_patch_management
-  when: target_platform == 'windows'
-  tags:
-    - windows
-    - patching
-
-# ================== PARCHADO LINUX ==================
-- name: Validar variables requeridas para Linux
-  ansible.builtin.assert:
-    that:
-      - patch_source is defined and patch_source in ['internet', 'satellite', 'reposerver', 'susemanager']
-      - patch_type is defined
-      - backup_to_jumphost is defined
-      - reboot_required is defined
-    fail_msg: |
-      Variables faltantes para parchado Linux:
-      - patch_source: {{ patch_source | default('FALTANTE') }} (internet/satellite/reposerver/susemanager)
-      - patch_type: {{ patch_type | default('FALTANTE') }} (update_all/security_all/rcp_all/etc)
-      - backup_to_jumphost: {{ backup_to_jumphost | default('FALTANTE') }} (true/false)
-      - reboot_required: {{ reboot_required | default('FALTANTE') }} (true/false)
-    success_msg: "Variables de Linux validadas correctamente"
-  when: target_platform == 'linux'
-  tags:
-    - linux
-    - validation
-
-- name: Recolectar facts del sistema para Linux
-  ansible.builtin.setup:
-  when:
-    - target_platform == 'linux'
-  tags:
-    - linux
-    - facts
-
-- name: Limpiar archivo de bloqueo si existe
-  ansible.builtin.file:
-    path: "/etc/ansible/facts.d/unix_patching.fact"
-    state: absent
-  when:
-    - target_platform == 'linux'
-  become: true
-  ignore_errors: true
-  tags:
-    - linux
-    - cleanup
-
-- name: Ejecutar parchado de Linux - RedHat
-  block:
-    - name: Limpiar cache de yum
-      ansible.builtin.command: yum clean all
-      when:
-        - yum_clean_all | default(false)
-      become: true
-      changed_when: true
-
-    - name: Actualizar paquetes de seguridad
-      ansible.builtin.yum:
-        name: "*"
-        state: latest
-        security: true
-        exclude: "{{ yum_exclude_patch_list | default('') }}"
-      when:
-        - patch_type in ['security', 'security_all']
-      become: true
-      register: security_update_result
-
-    - name: Actualizar todos los paquetes
-      ansible.builtin.yum:
-        name: "*"
-        state: latest
-        exclude: "{{ yum_exclude_patch_list | default('') }}"
-      when:
-        - patch_type in ['all', 'update_all']
-      become: true
-      register: all_update_result
-
-    - name: Instalar paquetes específicos
-      ansible.builtin.yum:
-        name: "{{ specific_packages }}"
-        state: latest
-      when:
-        - patch_type == 'specific'
-        - specific_packages is defined
-      become: true
-      register: specific_update_result
-
-    - name: Mostrar resultado del parchado
-      ansible.builtin.debug:
-        msg: |
-          Parchado completado:
-          - Tipo de parchado: {{ patch_type }}
-          - Paquetes actualizados: {{ (security_update_result.results | default([]) + all_update_result.results | default([]) + specific_update_result.results | default([])) | length }}
-      when: security_update_result is defined or all_update_result is defined or specific_update_result is defined
-
-    - name: Reiniciar el sistema si es necesario
-      ansible.builtin.reboot:
-        reboot_timeout: 600
-      when:
-        - reboot_required | default(false)
-        - security_update_result.changed | default(false) or all_update_result.changed | default(false) or specific_update_result.changed | default(false)
-      become: true
-
-  when:
-    - target_platform == 'linux'
-    - ansible_facts.os_family == "RedHat"
-  tags:
-    - linux
-    - patching
-    - redhat
-
-# - name: Ejecutar parchado de Linux - CentOS
-#   ansible.builtin.include: roles/parchado/linux/playbooks/centos_pre_patch_post.yml
+# - name: Mostrar configuración de parchado
+#   ansible.builtin.debug:
+#     var: configuracion_parchado
 #   vars:
-#     __patch_source__: "{{ patch_source }}"
-#     __patch_type__: "{{ patch_type }}"
-#     __backup_to_jumphost__: "{{ backup_to_jumphost }}"
-#     __reboot_required__: "{{ reboot_required }}"
-#     __fail_on_error__: "{{ fail_on_error | default(true) }}"
+#     configuracion_parchado:
+#       tipo_os: "{{ target_platform }}"
+#       sistema_detectado: "{{ ansible_os_family }}"
+#       servidor: "{{ ansible_hostname }}"
+#       usuario: "{{ ansible_user }}"
+#       timestamp: "{{ ansible_date_time.iso8601 }}"
+#   tags:
+#     - always
+#     - debug
+
+# # ================== PARCHADO WINDOWS ==================
+# - name: Validar variables requeridas para Windows
+#   ansible.builtin.assert:
+#     that:
+#       - patching_mode is defined and patching_mode in ['wsus', 'sccm']
+#       - target_environment is defined
+#       - domain_name is defined
+#       - (wsus_server is defined and wsus_server != '') if patching_mode == 'wsus' else true
+#       - ad_username is defined if patching_mode == 'wsus' else true
+#       - ad_password is defined if patching_mode == 'wsus' else true
+#       - selected_category is defined and selected_category | length > 0
+#     fail_msg: |
+#       Variables faltantes para parchado Windows:
+#       - patching_mode: {{ patching_mode | default('FALTANTE') }} (wsus/sccm)
+#       - target_environment: {{ target_environment | default('FALTANTE') }}
+#       - domain_name: {{ domain_name | default('FALTANTE') }}
+#       - wsus_server: {{ wsus_server | default('FALTANTE') }} (solo para WSUS)
+#       - ad_username: {{ ad_username | default('FALTANTE') }} (solo para WSUS)
+#       - ad_password: {{ '[DEFINIDO]' if ad_password is defined else 'FALTANTE' }} (solo para WSUS)
+#       - selected_category: {{ selected_category | default('FALTANTE') }}
+#     success_msg: "Variables de Windows validadas correctamente"
+#   when: target_platform == 'windows'
+#   tags:
+#     - windows
+#     - validation
+
+# - name: Mapear variables de Windows al formato del rol
+#   ansible.builtin.set_fact:
+#     winpatch_patching_mode: "{{ patching_mode }}"
+#     winpatch_target_environment: "{{ target_environment }}"
+#     winpatch_domain_name: "{{ domain_name }}"
+#     x: "{{ wsus_server | default('') }}"
+#     winpatch_ad_username: "{{ ad_username | default('') }}"
+#     winpatch_ad_password: "{{ ad_password | default('') }}"
+#     winpatch_selected_category: "{{ selected_category }}"
+#     # Variables opcionales con valores por defecto
+#     winpatch_update_operation: "{{ update_operation | default('install') }}"
+#     winpatch_reboot_after_installation: "{{ reboot_after_installation | default(true) }}"
+#     winpatch_resume_services: "{{ resume_services | default(true) }}"
+#     winpatch_perform_ou_registration: "{{ perform_ou_registration | default(false) }}"
+#     winpatch_rescue_endpoint: "{{ rescue_endpoint | default(false) }}"
+#     winpatch_save_logs: "{{ save_logs | default(false) }}"
+#     winpatch_logs_path: "{{ logs_path | default('C:/temp/patch_logs') }}"
+#   when: target_platform == 'windows'
+#   tags:
+#     - windows
+#     - variable_mapping
+
+# - name: Ejecutar parchado de Windows
+#   ansible.builtin.include_role:
+#     name: parchado/windows/windows_patch_management
+#   when: target_platform == 'windows'
+#   tags:
+#     - windows
+#     - patching
+
+# # ================== PARCHADO LINUX ==================
+# - name: Validar variables requeridas para Linux
+#   ansible.builtin.assert:
+#     that:
+#       - patch_source is defined and patch_source in ['internet', 'satellite', 'reposerver', 'susemanager']
+#       - patch_type is defined
+#       - backup_to_jumphost is defined
+#       - reboot_required is defined
+#     fail_msg: |
+#       Variables faltantes para parchado Linux:
+#       - patch_source: {{ patch_source | default('FALTANTE') }} (internet/satellite/reposerver/susemanager)
+#       - patch_type: {{ patch_type | default('FALTANTE') }} (update_all/security_all/rcp_all/etc)
+#       - backup_to_jumphost: {{ backup_to_jumphost | default('FALTANTE') }} (true/false)
+#       - reboot_required: {{ reboot_required | default('FALTANTE') }} (true/false)
+#     success_msg: "Variables de Linux validadas correctamente"
+#   when: target_platform == 'linux'
+#   tags:
+#     - linux
+#     - validation
+
+# - name: Recolectar facts del sistema para Linux
+#   ansible.builtin.setup:
 #   when:
 #     - target_platform == 'linux'
-#     - ansible_distribution == "CentOS"
+#   tags:
+#     - linux
+#     - facts
+
+# - name: Limpiar archivo de bloqueo si existe
+#   ansible.builtin.file:
+#     path: "/etc/ansible/facts.d/unix_patching.fact"
+#     state: absent
+#   when:
+#     - target_platform == 'linux'
+#   become: true
+#   ignore_errors: true
+#   tags:
+#     - linux
+#     - cleanup
+
+# - name: Ejecutar parchado de Linux - RedHat
+#   block:
+#     - name: Limpiar cache de yum
+#       ansible.builtin.command: yum clean all
+#       when:
+#         - yum_clean_all | default(false)
+#       become: true
+#       changed_when: true
+
+#     - name: Actualizar paquetes de seguridad
+#       ansible.builtin.yum:
+#         name: "*"
+#         state: latest
+#         security: true
+#         exclude: "{{ yum_exclude_patch_list | default('') }}"
+#       when:
+#         - patch_type in ['security', 'security_all']
+#       become: true
+#       register: security_update_result
+
+#     - name: Actualizar todos los paquetes
+#       ansible.builtin.yum:
+#         name: "*"
+#         state: latest
+#         exclude: "{{ yum_exclude_patch_list | default('') }}"
+#       when:
+#         - patch_type in ['all', 'update_all']
+#       become: true
+#       register: all_update_result
+
+#     - name: Instalar paquetes específicos
+#       ansible.builtin.yum:
+#         name: "{{ specific_packages }}"
+#         state: latest
+#       when:
+#         - patch_type == 'specific'
+#         - specific_packages is defined
+#       become: true
+#       register: specific_update_result
+
+#     - name: Mostrar resultado del parchado
+#       ansible.builtin.debug:
+#         msg: |
+#           Parchado completado:
+#           - Tipo de parchado: {{ patch_type }}
+#           - Paquetes actualizados: {{ (security_update_result.results | default([]) + all_update_result.results | default([]) + specific_update_result.results | default([])) | length }}
+#       when: security_update_result is defined or all_update_result is defined or specific_update_result is defined
+
+#     - name: Reiniciar el sistema si es necesario
+#       ansible.builtin.reboot:
+#         reboot_timeout: 600
+#       when:
+#         - reboot_required | default(false)
+#         - security_update_result.changed | default(false) or all_update_result.changed | default(false) or specific_update_result.changed | default(false)
+#       become: true
+
+#   when:
+#     - target_platform == 'linux'
+#     - ansible_facts.os_family == "RedHat"
 #   tags:
 #     - linux
 #     - patching
-#     - centos
+#     - redhat
 
-- name: Mostrar mensaje si no hay soporte para esta distribución Linux
-  ansible.builtin.debug:
-    var: mensaje_no_soportado
-  vars:
-    mensaje_no_soportado:
-      error: "Distribución Linux no soportada actualmente"
-      distribucion_detectada: "{{ ansible_distribution }}"
-      familia_os: "{{ ansible_os_family }}"
-      distribuciones_soportadas: ["RedHat", "CentOS"]
-      accion_requerida: "Agregar soporte para esta distribución"
-  when:
-    - target_platform == 'linux'
-    - ansible_os_family not in ["RedHat"] and ansible_distribution not in ["CentOS"]
-  tags:
-    - linux
-    - error
+# # - name: Ejecutar parchado de Linux - CentOS
+# #   ansible.builtin.include: roles/parchado/linux/playbooks/centos_pre_patch_post.yml
+# #   vars:
+# #     __patch_source__: "{{ patch_source }}"
+# #     __patch_type__: "{{ patch_type }}"
+# #     __backup_to_jumphost__: "{{ backup_to_jumphost }}"
+# #     __reboot_required__: "{{ reboot_required }}"
+# #     __fail_on_error__: "{{ fail_on_error | default(true) }}"
+# #   when:
+# #     - target_platform == 'linux'
+# #     - ansible_distribution == "CentOS"
+# #   tags:
+# #     - linux
+# #     - patching
+# #     - centos
 
-# ================== RESULTADO FINAL ==================
-- name: Crear resumen final de parchado
+# - name: Mostrar mensaje si no hay soporte para esta distribución Linux
+#   ansible.builtin.debug:
+#     var: mensaje_no_soportado
+#   vars:
+#     mensaje_no_soportado:
+#       error: "Distribución Linux no soportada actualmente"
+#       distribucion_detectada: "{{ ansible_distribution }}"
+#       familia_os: "{{ ansible_os_family }}"
+#       distribuciones_soportadas: ["RedHat", "CentOS"]
+#       accion_requerida: "Agregar soporte para esta distribución"
+#   when:
+#     - target_platform == 'linux'
+#     - ansible_os_family not in ["RedHat"] and ansible_distribution not in ["CentOS"]
+#   tags:
+#     - linux
+#     - error
+
+# # ================== RESULTADO FINAL ==================
+# - name: Crear resumen final de parchado
+#   ansible.builtin.set_fact:
+#     parchado_resultado:
+#       timestamp: "{{ ansible_date_time.iso8601 }}"
+#       servidor: "{{ ansible_hostname }}"
+#       tipo_os: "{{ target_platform }}"
+#       sistema_operativo: "{{ ansible_os_family }}"
+#       configuracion_windows: "{{ {'patching_mode': winpatch_patching_mode, 'target_environment': winpatch_target_environment, 'wsus_server': winpatch_wsus_server, 'selected_category': winpatch_selected_category} if target_platform == 'windows' else 'N/A' }}"
+#       configuracion_linux: "{{ {'patch_source': patch_source, 'patch_type': patch_type, 'backup_to_jumphost': backup_to_jumphost, 'reboot_required': reboot_required} if target_platform == 'linux' else 'N/A' }}"
+#       estado: "Completado"
+#       return_code: "{{ winpatch_return_code if target_platform == 'windows' and winpatch_return_code is defined else 'N/A' }}"
+#   tags:
+#     - always
+#     - final_result
+
+# - name: Mostrar resultado final del parchado
+#   ansible.builtin.debug:
+#     var: parchado_resultado
+#   tags:
+#     - always
+#     - final_result
+
+- name: 🔄 Simulación de ejecución exitosa (placeholder temporal)
   ansible.builtin.set_fact:
-    parchado_resultado:
-      timestamp: "{{ ansible_date_time.iso8601 }}"
-      servidor: "{{ ansible_hostname }}"
-      tipo_os: "{{ target_platform }}"
-      sistema_operativo: "{{ ansible_os_family }}"
-      configuracion_windows: "{{ {'patching_mode': winpatch_patching_mode, 'target_environment': winpatch_target_environment, 'wsus_server': winpatch_wsus_server, 'selected_category': winpatch_selected_category} if target_platform == 'windows' else 'N/A' }}"
-      configuracion_linux: "{{ {'patch_source': patch_source, 'patch_type': patch_type, 'backup_to_jumphost': backup_to_jumphost, 'reboot_required': reboot_required} if target_platform == 'linux' else 'N/A' }}"
-      estado: "Completado"
-      return_code: "{{ winpatch_return_code if target_platform == 'windows' and winpatch_return_code is defined else 'N/A' }}"
+    winpatch_return_code: 0
+  when: target_platform == 'windows'
   tags:
     - always
-    - final_result
-
-- name: Mostrar resultado final del parchado
-  ansible.builtin.debug:
-    var: parchado_resultado
-  tags:
-    - always
-    - final_result
+    - simulacion

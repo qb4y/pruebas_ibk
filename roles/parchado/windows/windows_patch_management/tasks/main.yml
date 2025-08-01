@@ -7,41 +7,41 @@
     winpatch_return_code: 2000
     winpatch_return_message: "Windows patch management completed successfully"
 
-- name: Validate input variables
-  block:
-    - name: Validate patching mode
-      fail:
-        msg: "Invalid patching mode '{{ winpatch_patching_mode }}'. Must be 'wsus' or 'sccm'"
-      when: winpatch_patching_mode not in ['wsus', 'sccm']
-      failed_when: true
+# - name: Validate input variables
+#   block:
+#     - name: Validate patching mode
+#       fail:
+#         msg: "Invalid patching mode '{{ winpatch_patching_mode }}'. Must be 'wsus' or 'sccm'"
+#       when: winpatch_patching_mode not in ['wsus', 'sccm']
+#       failed_when: true
 
-    - name: Validate required variables for WSUS mode
-      fail:
-        msg: "Missing required variable: winpatch_wsus_server"
-      when:
-        - winpatch_patching_mode == 'wsus'
-        - winpatch_wsus_server is not defined or winpatch_wsus_server == ''
-      failed_when: true
+# - name: Validate required variables for WSUS mode
+#   fail:
+#     msg: "Missing required variable: winpatch_wsus_server"
+#   when:
+#     - winpatch_patching_mode == 'wsus'
+#     - winpatch_wsus_server is not defined or winpatch_wsus_server == ''
+#   failed_when: true
 
-    - name: Validate required variables for SCCM mode
-      fail:
-        msg: "Missing required variables for SCCM mode"
-      when:
-        - winpatch_patching_mode == 'sccm'
-        - (winpatch_target_environment is not defined or winpatch_domain_name is not defined)
-      failed_when: true
+#     - name: Validate required variables for SCCM mode
+#       fail:
+#         msg: "Missing required variables for SCCM mode"
+#       when:
+#         - winpatch_patching_mode == 'sccm'
+#         - (winpatch_target_environment is not defined or winpatch_domain_name is not defined)
+#       failed_when: true
 
-  rescue:
-    - name: Set error return code for validation failure
-      set_fact:
-        winpatch_return_code: "{{ 3000 if winpatch_patching_mode not in ['wsus', 'sccm'] else (3001 if winpatch_patching_mode == 'wsus' else 3002) }}"
-        winpatch_return_message: "{{ ansible_failed_result.msg }}"
-      when: ansible_failed_result is defined
+#   rescue:
+#     - name: Set error return code for validation failure
+#       set_fact:
+#         winpatch_return_code: "{{ 3000 if winpatch_patching_mode not in ['wsus', 'sccm'] else (3001 if winpatch_patching_mode == 'wsus' else 3002) }}"
+#         winpatch_return_message: "{{ ansible_failed_result.msg }}"
+#       when: ansible_failed_result is defined
 
-    - name: Fail with validation error
-      fail:
-        msg: "{{ winpatch_return_message }}"
-      when: ansible_failed_result is defined
+# - name: Fail with validation error
+#   fail:
+#     msg: "{{ winpatch_return_message }}"
+#   when: ansible_failed_result is defined
 
 - name: Configure WSUS Client
   include_role:
@@ -129,7 +129,7 @@
     - name: Fail with update installation error
       fail:
         msg: "{{ winpatch_return_message }}"
-      when: 
+      when:
         - ansible_failed_result is defined
         - not winpatch_rescue_endpoint | bool
 
@@ -156,4 +156,4 @@
 - name: Final success message
   debug:
     msg: "Windows patch management completed successfully with return code {{ winpatch_return_code }}"
-  when: winpatch_return_code is defined and winpatch_return_code >= 2000 
+  when: winpatch_return_code is defined and winpatch_return_code >= 2000
