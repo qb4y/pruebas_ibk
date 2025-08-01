@@ -194,21 +194,21 @@
     - patching
     - redhat
 
-- name: Ejecutar parchado de Linux - CentOS
-  ansible.builtin.include: roles/parchado/linux/playbooks/centos_pre_patch_post.yml
-  vars:
-    __patch_source__: "{{ patch_source }}"
-    __patch_type__: "{{ patch_type }}"
-    __backup_to_jumphost__: "{{ backup_to_jumphost }}"
-    __reboot_required__: "{{ reboot_required }}"
-    __fail_on_error__: "{{ fail_on_error | default(true) }}"
-  when:
-    - type_os == 'linux'
-    - ansible_distribution == "CentOS"
-  tags:
-    - linux
-    - patching
-    - centos
+# - name: Ejecutar parchado de Linux - CentOS
+#   ansible.builtin.include: roles/parchado/linux/playbooks/centos_pre_patch_post.yml
+#   vars:
+#     __patch_source__: "{{ patch_source }}"
+#     __patch_type__: "{{ patch_type }}"
+#     __backup_to_jumphost__: "{{ backup_to_jumphost }}"
+#     __reboot_required__: "{{ reboot_required }}"
+#     __fail_on_error__: "{{ fail_on_error | default(true) }}"
+#   when:
+#     - type_os == 'linux'
+#     - ansible_distribution == "CentOS"
+#   tags:
+#     - linux
+#     - patching
+#     - centos
 
 - name: Mostrar mensaje si no hay soporte para esta distribución Linux
   ansible.builtin.debug:
