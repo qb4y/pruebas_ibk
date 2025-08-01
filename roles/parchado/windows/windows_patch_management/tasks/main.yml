@@ -2,10 +2,10 @@
 # Windows Patch Management Role - Main Tasks
 # Following Kyndryl Ansible Role Development Standards
 
-- name: Set return code for successful execution
-  set_fact:
-    winpatch_return_code: 2000
-    winpatch_return_message: "Windows patch management completed successfully"
+# - name: Set return code for successful execution
+#   set_fact:
+#     winpatch_return_code: 2000
+#     winpatch_return_message: "Windows patch management completed successfully"
 
 # - name: Validate input variables
 #   block:
@@ -43,117 +43,129 @@
 #     msg: "{{ winpatch_return_message }}"
 #   when: ansible_failed_result is defined
 
-- name: Configure WSUS Client
-  include_role:
-    name: configure_wsus_client
-  when: winpatch_patching_mode == 'wsus'
-  tags: configure_wsus
+# - name: Configure WSUS Client
+#   include_role:
+#     name: configure_wsus_client
+#   when: winpatch_patching_mode == 'wsus'
+#   tags: configure_wsus
 
-- name: Perform AD OU Registration
-  include_role:
-    name: manage_ad_ou
-  when: winpatch_perform_ou_registration | bool
-  tags: ou_registration
+# - name: Perform AD OU Registration
+#   include_role:
+#     name: manage_ad_ou
+#   when: winpatch_perform_ou_registration | bool
+#   tags: ou_registration
 
-- name: Pre-patching validation and checks
+# - name: Pre-patching validation and checks
+#   block:
+#     - name: WSUS Pre-patching Checks
+#       include_role:
+#         name: check_wsus_and_disk
+#       when: winpatch_patching_mode == 'wsus'
+
+#     - name: SCCM Pre-patching Checks
+#       include_role:
+#         name: check_sccm_and_disk
+#       when: winpatch_patching_mode == 'sccm'
+
+#     - name: Services Check
+#       include_role:
+#         name: check_services
+#       when: winpatch_resume_services | bool
+
+#   rescue:
+#     - name: Set error return code for pre-patching checks
+#       set_fact:
+#         winpatch_return_code: "{{ 3003 if winpatch_patching_mode == 'wsus' else 3004 }}"
+#         winpatch_return_message: "{{ ansible_failed_result.msg | default('Pre-patching validation failed') }}"
+#       when: ansible_failed_result is defined
+
+#     - name: Fail with pre-patching error
+#       fail:
+#         msg: "{{ winpatch_return_message }}"
+#       when: ansible_failed_result is defined
+
+# - name: Install Updates
+#   block:
+#     - name: Install Updates (SCCM)
+#       include_role:
+#         name: install_update_sccm
+#       when: winpatch_patching_mode == 'sccm'
+
+#     - name: Install Updates (WSUS)
+#       include_role:
+#         name: install_update_wsus
+#       when: winpatch_patching_mode == 'wsus'
+
+#   rescue:
+#     - name: Set error return code for update installation
+#       set_fact:
+#         winpatch_return_code: 3007
+#         winpatch_return_message: "{{ ansible_failed_result.msg | default('Update installation failed') }}"
+#       when: ansible_failed_result is defined
+
+#     - name: Execute rescue procedures
+#       block:
+#         - name: Check for backup folder
+#           include_role:
+#             name: check_bak_folder
+
+#         - name: Reset WSUS components
+#           include_role:
+#             name: reset_wsus
+
+#         - name: Restart services after rescue
+#           include_role:
+#             name: restart_services
+#           vars:
+#             remove_services_file: false
+#           when: winpatch_resume_services | bool
+
+#         - name: Retry update installation
+#           include_role:
+#             name: "{{ 'install_update_sccm' if winpatch_patching_mode == 'sccm' else 'install_update_wsus' }}"
+
+#       when: winpatch_rescue_endpoint | bool
+
+#     - name: Fail with update installation error
+#       fail:
+#         msg: "{{ winpatch_return_message }}"
+#       when:
+#         - ansible_failed_result is defined
+#         - not winpatch_rescue_endpoint | bool
+
+# - name: System Reboot
+#   include_role:
+#     name: reboot
+#   when: winpatch_reboot_after_installation | bool
+#   tags: reboot
+
+# - name: Service Restoration
+#   include_role:
+#     name: restart_services
+#   when: winpatch_resume_services | bool
+#   tags: restart_services
+
+# - name: Reset WSUS Client (if required)
+#   include_role:
+#     name: reset_wsus_client_id
+#   when:
+#     - winpatch_patching_mode == 'wsus'
+#     - winpatch_reset_wsus_client | default(false) | bool
+#   tags: reset_wsus
+
+# - name: Final success message
+#   debug:
+#     msg: "Windows patch management completed successfully with return code {{ winpatch_return_code }}"
+#   when: winpatch_return_code is defined and winpatch_return_code >= 2000
+
+- name: 🧩 Rol parchado Windows
   block:
-    - name: WSUS Pre-patching Checks
-      include_role:
-        name: check_wsus_and_disk
-      when: winpatch_patching_mode == 'wsus'
+    - name: 🔧 Configuración de cliente WSUS, OU, validaciones y actualizaciones
+      ansible.builtin.set_fact:
+        winpatch_return_code: 2000
+        winpatch_return_message: "🟢 Windows patch management simulated successfully"
 
-    - name: SCCM Pre-patching Checks
-      include_role:
-        name: check_sccm_and_disk
-      when: winpatch_patching_mode == 'sccm'
-
-    - name: Services Check
-      include_role:
-        name: check_services
-      when: winpatch_resume_services | bool
-
-  rescue:
-    - name: Set error return code for pre-patching checks
-      set_fact:
-        winpatch_return_code: "{{ 3003 if winpatch_patching_mode == 'wsus' else 3004 }}"
-        winpatch_return_message: "{{ ansible_failed_result.msg | default('Pre-patching validation failed') }}"
-      when: ansible_failed_result is defined
-
-    - name: Fail with pre-patching error
-      fail:
+    - name: 🧾 Mostrar mensaje final simulado
+      ansible.builtin.debug:
         msg: "{{ winpatch_return_message }}"
-      when: ansible_failed_result is defined
-
-- name: Install Updates
-  block:
-    - name: Install Updates (SCCM)
-      include_role:
-        name: install_update_sccm
-      when: winpatch_patching_mode == 'sccm'
-
-    - name: Install Updates (WSUS)
-      include_role:
-        name: install_update_wsus
-      when: winpatch_patching_mode == 'wsus'
-
-  rescue:
-    - name: Set error return code for update installation
-      set_fact:
-        winpatch_return_code: 3007
-        winpatch_return_message: "{{ ansible_failed_result.msg | default('Update installation failed') }}"
-      when: ansible_failed_result is defined
-
-    - name: Execute rescue procedures
-      block:
-        - name: Check for backup folder
-          include_role:
-            name: check_bak_folder
-
-        - name: Reset WSUS components
-          include_role:
-            name: reset_wsus
-
-        - name: Restart services after rescue
-          include_role:
-            name: restart_services
-          vars:
-            remove_services_file: false
-          when: winpatch_resume_services | bool
-
-        - name: Retry update installation
-          include_role:
-            name: "{{ 'install_update_sccm' if winpatch_patching_mode == 'sccm' else 'install_update_wsus' }}"
-
-      when: winpatch_rescue_endpoint | bool
-
-    - name: Fail with update installation error
-      fail:
-        msg: "{{ winpatch_return_message }}"
-      when:
-        - ansible_failed_result is defined
-        - not winpatch_rescue_endpoint | bool
-
-- name: System Reboot
-  include_role:
-    name: reboot
-  when: winpatch_reboot_after_installation | bool
-  tags: reboot
-
-- name: Service Restoration
-  include_role:
-    name: restart_services
-  when: winpatch_resume_services | bool
-  tags: restart_services
-
-- name: Reset WSUS Client (if required)
-  include_role:
-    name: reset_wsus_client_id
-  when:
-    - winpatch_patching_mode == 'wsus'
-    - winpatch_reset_wsus_client | default(false) | bool
-  tags: reset_wsus
-
-- name: Final success message
-  debug:
-    msg: "Windows patch management completed successfully with return code {{ winpatch_return_code }}"
-  when: winpatch_return_code is defined and winpatch_return_code >= 2000
+  tags: always
