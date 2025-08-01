@@ -4,7 +4,7 @@
 
 - name: Detectar sistema operativo automáticamente si no se especifica
   ansible.builtin.set_fact:
-    target_platform: "{{ 'windows' if ansible_os_family == 'Windows' else 'linux' }}"
+    target_platform: "{{ ansible_os_family | lower }}"
   when: target_platform is not defined
   tags:
     - always
