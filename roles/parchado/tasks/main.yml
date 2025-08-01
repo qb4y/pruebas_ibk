@@ -2,10 +2,9 @@
 # Rol Principal de Parchado - Decisión por Tipo de SO
 # Soporta Windows y Linux con variables específicas por plataforma
 
-- name: Detectar sistema operativo automáticamente si no se especifica
+- name: Detectar sistema operativo automáticamente
   ansible.builtin.set_fact:
     target_platform: "{{ ansible_os_family | lower }}"
-  when: target_platform is not defined
   tags:
     - always
     - os_detection
