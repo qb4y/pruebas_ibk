@@ -48,9 +48,9 @@ galaxy_info:
     - kyndryl
 
 dependencies:
-  - role: parchado/windows/windows_patch_management
+  - role: roles/parchado/windows/windows_patch_management
     when: target_platform == 'windows'
-  - role: parchado/linux
+  - role: roles/parchado/linux
     when: target_platform == 'linux'
 
 collections:
