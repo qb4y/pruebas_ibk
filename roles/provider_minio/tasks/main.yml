@@ -25,32 +25,23 @@
 #     fail_msg: "❌ Variables de MinIO no fueron cargadas correctamente desde Vault"
 #   tags: [vault]
 
-- name: ❌ Simular error al configurar alias de MinIO en mc
-  ansible.builtin.command: >
-    mc alias set miMinio http://{{ minio_host }}:{{ minio_port }} {{ minio_user }} {{ minio_password }}
-  register: simulated_mc_result
-  changed_when: true
-  failed_when: true
-  delegate_to: localhost
-  run_once: true
-  args:
-    warn: false
-  environment:
-    # Evita intentar ejecución real (opcional si estás en entorno aislado)
-    PATH: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-
-- name: 💥 Forzar resultado de error en alias set
+- name: Definir valores de MinIO para entorno actual
   ansible.builtin.set_fact:
-    simulated_mc_result:
-      rc: 1
-      stderr: >
-        mc: <ERROR> Unable to initialize new alias from the provided credentials.
-        Get "http://{{ minio_host }}:{{ minio_port }}/probe-bsign-xxyy/?location=":
-        dial tcp: lookup {{ minio_host }} on 10.96.0.10:53: no such host.
-      stdout: ""
-  when: true # Siempre aplicar en entorno de simulación
+    minio_host: "minio.fake"
+    minio_port: 9000
+    minio_user: "minioadmin"
+    minio_password: "minioadmin"
+    minio_bucket: "instaladores"
+    provider_minio_product: "crowdstrike"
+    PROVIDER_MINIO_INCLUDE_CERTIFICATES: false
 
-- name: ❌ Detener ejecución por error simulado
-  ansible.builtin.fail:
-    msg: "{{ simulated_mc_result.stderr }}"
-  when: simulated_mc_result.rc != 0
+- name: Mostrar configuración del proveedor dinámico
+  ansible.builtin.debug:
+    msg:
+      - "🎯 Producto: {{ provider_minio_product }}"
+      - "📦 Incluir certificados: {{ PROVIDER_MINIO_INCLUDE_CERTIFICATES }}"
+      - "🪣 Bucket: {{ minio_bucket }}"
+      - "🔄 Ejecutado desde entorno local"
+
+- name: Generar URLs de descarga dinámicas
+  ansible.builtin.include_tasks: generate_urls.yml
