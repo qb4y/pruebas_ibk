@@ -18,9 +18,16 @@
     fail_msg: "❌ No se pudo obtener el hostname del sistema Windows"
 
 # ========== OBTENER IP ADDRESS ==========
-- name: 🌐 Obtener IP address principal
+- name: 🌐 Obtener IP address principal (Windows)
   ansible.builtin.set_fact:
-    rcp_ip_address: "{{ ansible_default_ipv4.address }}"
+    rcp_ip_address: >-
+      {{
+        ansible_all_ipv4_addresses
+        | reject("search", "^169\\.254\\.")      # excluir APIPA
+        | reject("search", "^127\\.")            # excluir localhost
+        | list
+        | first
+      }}
 
 - name: ✅ Validar IP address Windows
   ansible.builtin.assert:
