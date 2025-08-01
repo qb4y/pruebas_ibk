@@ -195,7 +195,7 @@
     - redhat
 
 - name: Ejecutar parchado de Linux - CentOS
-  ansible.builtin.include: parchado/linux/playbooks/centos_pre_patch_post.yml
+  ansible.builtin.include: roles/parchado/linux/playbooks/centos_pre_patch_post.yml
   vars:
     __patch_source__: "{{ patch_source }}"
     __patch_type__: "{{ patch_type }}"
